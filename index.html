@@ -185,6 +185,10 @@
     align-items: flex-start;
   }
   .card.dragging { opacity: .4; }
+  .card.compact { padding: 10px 14px; }
+  .card.compact .card-title { font-size: 14px; margin: 1px 0 2px; }
+  .card.compact .row-line, .card.compact .notes { font-size: 12.5px; margin-top: 2px; }
+  .card.compact .photo-thumb, .card.compact .qr-thumb { width: 44px; height: 44px; }
   .drag-handle {
     cursor: grab;
     color: var(--text-dim);
@@ -268,6 +272,28 @@
   }
   .icon-btn.danger { color: var(--danger); }
   .icon-btn:hover { background: var(--border); }
+  .fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .1s ease;
+  }
+  .fab:hover { transform: scale(1.06); }
+  .fab:active { transform: scale(0.95); }
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -467,6 +493,7 @@
 
     <div id="list"></div>
   </main>
+  <button class="fab" id="btnNewFab" title="New Item">+</button>
 </div>
 
 <!-- ================= ITEM FORM MODAL ================= -->
@@ -648,6 +675,21 @@
   </div>
 </div>
 
+<!-- ================= CONFIRM DIALOG ================= -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal" style="max-width:380px;">
+    <h2 id="confirmHeading">Are you sure?</h2>
+    <p id="confirmMessage" class="hint" style="font-size:14px;"></p>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn btn-secondary" id="confirmCancelBtn">Cancel</button>
+        <button type="button" class="btn" id="confirmOkBtn" style="background:var(--danger); color:#fff;">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ================= SETTINGS MODAL ================= -->
 <div class="overlay" id="settingsOverlay">
   <div class="modal" style="max-width:460px;">
@@ -725,6 +767,32 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function escapeAttr(str) { return escapeHtml(str); }
+
+// In-app replacement for the native confirm() popup, styled to match the rest
+// of the app. Resolves true/false depending on which button was clicked.
+function showConfirm(message, okLabel) {
+  return new Promise((resolve) => {
+    const overlay = $('confirmOverlay');
+    $('confirmMessage').textContent = message;
+    $('confirmOkBtn').textContent = okLabel || 'Delete';
+    overlay.classList.add('open');
+
+    function cleanup(result) {
+      overlay.classList.remove('open');
+      $('confirmOkBtn').removeEventListener('click', onOk);
+      $('confirmCancelBtn').removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      resolve(result);
+    }
+    function onOk() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+    function onOverlayClick(e) { if (e.target === overlay) cleanup(false); }
+
+    $('confirmOkBtn').addEventListener('click', onOk);
+    $('confirmCancelBtn').addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+  });
+}
 
 // =================================================================
 // TRIPS (landing page)
@@ -806,7 +874,8 @@ function renderTrips(counts) {
 }
 
 async function deleteTrip(id, name) {
-  if (!confirm(`Delete trip "${name}" and all its itinerary items? This cannot be undone.`)) return;
+  const ok = await showConfirm(`Delete trip "${name}" and all its itinerary items? This cannot be undone.`, 'Delete trip');
+  if (!ok) return;
   const { error } = await sb.from(TRIPS_TABLE).delete().eq('id', id);
   if (error) {
     toast('Delete failed: ' + error.message, true);
@@ -1019,6 +1088,56 @@ function formatTime(t) {
   return t.slice(0, 5); // 24-hour HH:MM, straight from the <input type="time"> value
 }
 
+// Builds a Google Calendar "quick add" link — no auth/API needed, it just
+// pre-fills the create-event page and lets the user hit Save themselves.
+function buildGoogleCalendarUrl(item) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const [y, mo, d] = item.item_date.split('-').map(Number);
+  let datesParam;
+
+  if (item.start_time) {
+    const [sh, sm] = item.start_time.split(':').map(Number);
+    const startStr = `${y}${pad(mo)}${pad(d)}T${pad(sh)}${pad(sm)}00`;
+    let endDate = new Date(y, mo - 1, d, sh, sm);
+    if (item.end_time) {
+      const [eh, em] = item.end_time.split(':').map(Number);
+      endDate = new Date(y, mo - 1, d, eh, em);
+      if (endDate <= new Date(y, mo - 1, d, sh, sm)) endDate.setDate(endDate.getDate() + 1); // overnight
+    } else {
+      endDate.setHours(endDate.getHours() + 1); // default 1-hour duration
+    }
+    const endStr = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}T${pad(endDate.getHours())}${pad(endDate.getMinutes())}00`;
+    datesParam = `${startStr}/${endStr}`;
+  } else {
+    // All-day event. For a lodging stay, span through the check-out date.
+    let endDateStr;
+    if (item.checkout_date) {
+      endDateStr = item.checkout_date.replace(/-/g, '');
+    } else {
+      const endDate = new Date(y, mo - 1, d);
+      endDate.setDate(endDate.getDate() + 1); // Google's end date is exclusive
+      endDateStr = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}`;
+    }
+    datesParam = `${y}${pad(mo)}${pad(d)}/${endDateStr}`;
+  }
+
+  const detailParts = [];
+  if (item.notes) detailParts.push(item.notes);
+  if (item.reservation_name) {
+    detailParts.push(`Reservation: ${item.reservation_name}${item.confirmation_code ? ' (Conf# ' + item.confirmation_code + ')' : ''}`);
+  }
+  if (item.place_link) detailParts.push(item.place_link);
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: item.title || 'Itinerary item',
+    dates: datesParam,
+    details: detailParts.join('\n\n'),
+    location: item.address || item.place_name || ''
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 function formatPrice(price, currency) {
   if (price === null || price === undefined || price === '') return '';
   const num = Number(price).toFixed(2);
@@ -1126,8 +1245,9 @@ function render() {
 }
 
 function renderCard(item) {
+  const isLodging = item.category === 'lodging';
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card' + (isLodging ? ' compact' : '');
   card.draggable = true;
   card.dataset.id = item.id;
   card.style.borderLeftColor = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.other;
@@ -1135,8 +1255,20 @@ function renderCard(item) {
   const timeRange = [formatTime(item.start_time), formatTime(item.end_time)].filter(Boolean).join(' – ');
   const price = formatPrice(item.price, item.currency);
 
+  // Lodging is compact: hotel name + stay range collapse into one line, and
+  // opening hours / a separate check-out line are dropped (not meaningful for
+  // a hotel and redundant with the day's "staying at" banner).
   let placeLine = '';
-  if (item.place_name || item.place_link) {
+  if (isLodging) {
+    const stayRange = item.checkout_date
+      ? `${formatShortDate(item.item_date)} – ${formatShortDate(item.checkout_date)}`
+      : formatShortDate(item.item_date);
+    const label = item.place_name || 'Hotel';
+    const labelHtml = item.place_link
+      ? `<a href="${escapeAttr(item.place_link)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`
+      : escapeHtml(label);
+    placeLine = `<div class="row-line">🏨 ${labelHtml} · ${stayRange}</div>`;
+  } else if (item.place_name || item.place_link) {
     const label = item.place_name || 'View location';
     placeLine = `<div class="row-line">📍 ${item.place_link
       ? `<a href="${escapeAttr(item.place_link)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`
@@ -1144,9 +1276,9 @@ function renderCard(item) {
   }
 
   const addressLine = item.address ? `<div class="row-line">🏠 ${escapeHtml(item.address)}</div>` : '';
-  const todaysHours = getOpeningHoursForDate(item);
+  const todaysHours = isLodging ? '' : getOpeningHoursForDate(item);
   const hoursLine = todaysHours ? `<div class="row-line">🕒 ${escapeHtml(todaysHours)}</div>` : '';
-  const checkoutLine = item.checkout_date
+  const checkoutLine = (!isLodging && item.checkout_date)
     ? `<div class="row-line">🚪 Check-out ${formatShortDate(item.checkout_date)}</div>`
     : '';
   const bookByDate = getBookByDate(item);
@@ -1181,11 +1313,13 @@ function renderCard(item) {
     ${item.ticket_data ? `<img class="qr-thumb" data-ticket="${encodeURIComponent(item.ticket_data)}" alt="Ticket QR" />` : ''}
     <div class="card-actions">
       <button class="icon-btn" data-edit="${item.id}">Edit</button>
+      <button class="icon-btn" data-cal="${item.id}" title="Add to Google Calendar">📅</button>
       <button class="icon-btn danger" data-del="${item.id}">Delete</button>
     </div>
   `;
 
   card.querySelector('[data-edit]').addEventListener('click', () => openForm(item));
+  card.querySelector('[data-cal]').addEventListener('click', () => window.open(buildGoogleCalendarUrl(item), '_blank', 'noopener'));
   card.querySelector('[data-del]').addEventListener('click', () => deleteItem(item.id));
   const qrImg = card.querySelector('.qr-thumb');
   if (qrImg) qrImg.addEventListener('click', () => openQrLightbox(item.ticket_data));
@@ -1346,6 +1480,7 @@ function closeForm() {
 }
 
 $('btnNew').addEventListener('click', () => openForm(null));
+$('btnNewFab').addEventListener('click', () => openForm(null));
 $('btnCancel').addEventListener('click', closeForm);
 overlay.addEventListener('click', (e) => { if (e.target === overlay) closeForm(); });
 
@@ -1398,7 +1533,8 @@ form.addEventListener('submit', async (e) => {
 });
 
 async function deleteItem(id) {
-  if (!confirm('Delete this itinerary item? This cannot be undone.')) return;
+  const ok = await showConfirm('Delete this itinerary item? This cannot be undone.', 'Delete item');
+  if (!ok) return;
   const { error } = await sb.from(ITEMS_TABLE).delete().eq('id', id);
   if (error) {
     toast('Delete failed: ' + error.message, true);
