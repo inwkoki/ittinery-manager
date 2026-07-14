@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Itinerary Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #f0f1f4;
+    --border: #e2e4e9;
+    --text: #1c1e21;
+    --text-dim: #6b7280;
+    --accent: #4f46e5;
+    --accent-2: #7c3aed;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101114;
+      --surface: #1a1b1f;
+      --surface-2: #212227;
+      --border: #2c2d33;
+      --text: #eceef1;
+      --text-dim: #9296a1;
+      --accent: #818cf8;
+      --accent-2: #a78bfa;
+      --danger: #f87171;
+      --success: #4ade80;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    padding: 28px 20px;
+  }
+  .header-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-inner h1 {
+    margin: 0;
+    font-size: 22px;
+  }
+  .header-inner input#tripTitle {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    width: 100%;
+    max-width: 420px;
+  }
+  .header-inner input#tripTitle::placeholder { color: rgba(255,255,255,.75); }
+  .header-inner input#tripTitle:focus { outline: 1px dashed rgba(255,255,255,.6); }
+  #status {
+    font-size: 12px;
+    opacity: .9;
+  }
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .05s ease, opacity .15s ease;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: #fff; color: var(--accent); }
+  .btn-primary:hover { opacity: .9; }
+  .btn-ghost { background: rgba(255,255,255,.15); color: #fff; }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .toolbar input, .toolbar select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .toolbar input[type="text"] { flex: 1; min-width: 180px; }
+  .day-group { margin-bottom: 26px; }
+  .day-heading {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 8px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    z-index: 5;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--accent);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .card .main-col { flex: 1; min-width: 0; }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .card-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .card-title { font-size: 16px; font-weight: 700; margin: 2px 0 4px; }
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    background: var(--surface-2);
+    color: var(--text-dim);
+  }
+  .price-badge {
+    font-weight: 700;
+    color: var(--success);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .row-line {
+    font-size: 13.5px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .row-line a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .row-line a:hover { text-decoration: underline; }
+  .notes { font-size: 13.5px; margin-top: 6px; white-space: pre-wrap; }
+  .qr-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    background: #fff;
+    padding: 4px;
+    flex-shrink: 0;
+  }
+  .card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .icon-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .icon-btn.danger { color: var(--danger); }
+  .icon-btn:hover { background: var(--border); }
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .big { font-size: 40px; margin-bottom: 8px; }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 30px 16px;
+    overflow-y: auto;
+    z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    padding: 22px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.3);
+  }
+  .modal h2 { margin-top: 0; font-size: 18px; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 4px;
+  }
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 50px; }
+  .modal-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    gap: 10px;
+  }
+  .modal-actions .right { display: flex; gap: 8px; }
+  .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-save { background: var(--accent); color: #fff; }
+
+  /* QR lightbox */
+  .lightbox {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    max-width: 320px;
+  }
+  .lightbox img { width: 240px; height: 240px; background: #fff; border-radius: 8px; }
+  .lightbox .ticket-text {
+    margin-top: 12px;
+    font-size: 13px;
+    word-break: break-all;
+    color: var(--text-dim);
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  .banner {
+    background: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffe69c;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <input id="tripTitle" placeholder="My Trip Itinerary" />
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span id="status">connecting…</span>
+      <button class="btn btn-primary" id="btnNew">+ New Item</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="setupBanner" class="banner" style="display:none;">
+    Couldn't reach the <code>itinerary_items</code> table. Run
+    <code>schema.sql</code> in your Supabase project's SQL Editor, then reload this page.
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search title, place, notes…" />
+    <select id="filterCategory">
+      <option value="">All categories</option>
+      <option value="flight">Flight</option>
+      <option value="train">Train</option>
+      <option value="bus">Bus</option>
+      <option value="car">Car / Transfer</option>
+      <option value="lodging">Lodging</option>
+      <option value="activity">Activity</option>
+      <option value="food">Food</option>
+      <option value="other">Other</option>
+    </select>
+  </div>
+
+  <div id="list"></div>
+</main>
+
+<div class="overlay" id="formOverlay">
+  <div class="modal">
+    <h2 id="formHeading">New Itinerary Item</h2>
+    <form id="itemForm">
+      <input type="hidden" id="f-id" />
+      <div class="form-grid">
+        <div>
+          <label>Date *</label>
+          <input type="date" id="f-date" required />
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="f-category">
+            <option value="flight">Flight</option>
+            <option value="train">Train</option>
+            <option value="bus">Bus</option>
+            <option value="car">Car / Transfer</option>
+            <option value="lodging">Lodging</option>
+            <option value="activity" selected>Activity</option>
+            <option value="food">Food</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label>Start time</label>
+          <input type="time" id="f-start" />
+        </div>
+        <div>
+          <label>End time</label>
+          <input type="time" id="f-end" />
+        </div>
+        <div class="full">
+          <label>Title / Activity *</label>
+          <input type="text" id="f-title" placeholder="e.g. Flight to Tokyo, Check-in at hotel…" required />
+        </div>
+        <div class="full">
+          <label>Place name</label>
+          <input type="text" id="f-place-name" placeholder="e.g. Narita Airport" />
+        </div>
+        <div class="full">
+          <label>Place link (Google Maps / website)</label>
+          <input type="url" id="f-place-link" placeholder="https://maps.google.com/…" />
+        </div>
+        <div>
+          <label>Reservation name</label>
+          <input type="text" id="f-reservation-name" placeholder="e.g. ANA, Hilton, OpenTable" />
+        </div>
+        <div>
+          <label>Confirmation code</label>
+          <input type="text" id="f-confirmation" placeholder="e.g. ABC123" />
+        </div>
+        <div>
+          <label>Price</label>
+          <input type="number" step="0.01" id="f-price" placeholder="0.00" />
+        </div>
+        <div>
+          <label>Currency</label>
+          <input type="text" id="f-currency" placeholder="USD" value="USD" />
+        </div>
+        <div class="full">
+          <label>Ticket QR content (URL, booking ref, or e-ticket text)</label>
+          <textarea id="f-ticket-data" placeholder="Paste a check-in link, PNR, or e-ticket reference — a QR code will be generated from this"></textarea>
+        </div>
+        <div class="full">
+          <label>Notes</label>
+          <textarea id="f-notes" placeholder="Anything else worth remembering…"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn icon-btn danger" id="btnDeleteInForm" style="display:none;">Delete item</button>
+        <div class="right">
+          <button type="button" class="btn btn-secondary" id="btnCancel">Cancel</button>
+          <button type="submit" class="btn btn-save">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="qrOverlay">
+  <div class="lightbox">
+    <img id="qrLarge" alt="Ticket QR code" />
+    <div class="ticket-text" id="qrText"></div>
+    <div style="margin-top:14px;">
+      <button class="btn btn-secondary" id="btnCloseQr">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://pyeeqlnnzsencnitobwo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_vviYmFsZjGvNK0cs3iWBSw_B5Px2ikp';
+const TABLE = 'itinerary_items';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CATEGORY_COLORS = {
+  flight: '#2563eb', train: '#0891b2', bus: '#0d9488', car: '#65a30d',
+  lodging: '#c026d3', activity: '#4f46e5', food: '#ea580c', other: '#6b7280'
+};
+
+let items = [];
+
+const $ = (id) => document.getElementById(id);
+const listEl = $('list');
+const statusEl = $('status');
+const tripTitleEl = $('tripTitle');
+
+function toast(msg, isError) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.background = isError ? '#dc2626' : '';
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ---- Trip title persistence (local, purely cosmetic) ----
+tripTitleEl.value = localStorage.getItem('itinerary_trip_title') || '';
+tripTitleEl.addEventListener('input', () => {
+  localStorage.setItem('itinerary_trip_title', tripTitleEl.value);
+});
+
+// ---- Data loading ----
+async function loadItems() {
+  statusEl.textContent = 'loading…';
+  const { data, error } = await sb
+    .from(TABLE)
+    .select('*')
+    .order('item_date', { ascending: true })
+    .order('start_time', { ascending: true, nullsFirst: false });
+
+  if (error) {
+    console.error(error);
+    statusEl.textContent = 'connection error';
+    $('setupBanner').style.display = 'block';
+    listEl.innerHTML = '';
+    return;
+  }
+  $('setupBanner').style.display = 'none';
+  statusEl.textContent = `synced · ${data.length} item${data.length === 1 ? '' : 's'}`;
+  items = data;
+  render();
+}
+
+function formatDateHeading(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  const hour = parseInt(h, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h12 = ((hour + 11) % 12) + 1;
+  return `${h12}:${m} ${ampm}`;
+}
+
+function formatPrice(price, currency) {
+  if (price === null || price === undefined || price === '') return '';
+  const num = Number(price).toFixed(2);
+  const symbols = { USD: '$', EUR: '€', GBP: '£', JPY: '¥', THB: '฿' };
+  const sym = symbols[currency];
+  return sym ? `${sym}${num}` : `${num} ${currency || ''}`.trim();
+}
+
+function matchesFilters(item) {
+  const q = $('search').value.trim().toLowerCase();
+  const cat = $('filterCategory').value;
+  if (cat && item.category !== cat) return false;
+  if (!q) return true;
+  const hay = [item.title, item.place_name, item.notes, item.reservation_name]
+    .filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q);
+}
+
+function render() {
+  const filtered = items.filter(matchesFilters);
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="big">🗺️</div>
+        <div>${items.length === 0 ? 'No itinerary items yet — click "+ New Item" to add your first one.' : 'No items match your search.'}</div>
+      </div>`;
+    return;
+  }
+
+  const groups = {};
+  for (const item of filtered) {
+    (groups[item.item_date] ||= []).push(item);
+  }
+
+  listEl.innerHTML = '';
+  for (const date of Object.keys(groups).sort()) {
+    const section = document.createElement('div');
+    section.className = 'day-group';
+    section.innerHTML = `<div class="day-heading">${formatDateHeading(date)}</div>`;
+    for (const item of groups[date]) {
+      section.appendChild(renderCard(item));
+    }
+    listEl.appendChild(section);
+  }
+
+  renderQrThumbnails();
+}
+
+function renderCard(item) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.borderLeftColor = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.other;
+
+  const timeRange = [formatTime(item.start_time), formatTime(item.end_time)].filter(Boolean).join(' – ');
+  const price = formatPrice(item.price, item.currency);
+
+  let placeLine = '';
+  if (item.place_name || item.place_link) {
+    const label = item.place_name || 'View location';
+    placeLine = `<div class="row-line">📍 ${item.place_link
+      ? `<a href="${escapeAttr(item.place_link)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`
+      : escapeHtml(label)}</div>`;
+  }
+
+  let reservationLine = '';
+  if (item.reservation_name || item.confirmation_code) {
+    reservationLine = `<div class="row-line">🎫 ${escapeHtml(item.reservation_name || 'Reservation')}${item.confirmation_code ? ` · Conf# ${escapeHtml(item.confirmation_code)}` : ''}</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="main-col">
+      <div class="card-top">
+        <span class="card-time">${timeRange || 'All day'}</span>
+        <span class="pill">${escapeHtml(item.category || 'other')}</span>
+        ${price ? `<span class="price-badge">${price}</span>` : ''}
+      </div>
+      <div class="card-title">${escapeHtml(item.title)}</div>
+      ${placeLine}
+      ${reservationLine}
+      ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
+    </div>
+    ${item.ticket_data ? `<img class="qr-thumb" data-ticket="${encodeURIComponent(item.ticket_data)}" alt="Ticket QR" />` : ''}
+    <div class="card-actions">
+      <button class="icon-btn" data-edit="${item.id}">Edit</button>
+      <button class="icon-btn danger" data-del="${item.id}">Delete</button>
+    </div>
+  `;
+
+  card.querySelector('[data-edit]').addEventListener('click', () => openForm(item));
+  card.querySelector('[data-del]').addEventListener('click', () => deleteItem(item.id));
+  const qrImg = card.querySelector('.qr-thumb');
+  if (qrImg) {
+    qrImg.addEventListener('click', () => openQrLightbox(item.ticket_data));
+  }
+  return card;
+}
+
+async function renderQrThumbnails() {
+  const thumbs = listEl.querySelectorAll('.qr-thumb');
+  for (const img of thumbs) {
+    const data = decodeURIComponent(img.dataset.ticket);
+    try {
+      img.src = await QRCode.toDataURL(data, { width: 128, margin: 1 });
+    } catch (e) {
+      console.error('QR generation failed', e);
+    }
+  }
+}
+
+async function openQrLightbox(ticketData) {
+  const overlay = $('qrOverlay');
+  $('qrText').textContent = ticketData;
+  try {
+    $('qrLarge').src = await QRCode.toDataURL(ticketData, { width: 480, margin: 1 });
+  } catch (e) {
+    toast('Could not render QR code', true);
+    return;
+  }
+  overlay.classList.add('open');
+}
+$('btnCloseQr').addEventListener('click', () => $('qrOverlay').classList.remove('open'));
+$('qrOverlay').addEventListener('click', (e) => { if (e.target.id === 'qrOverlay') e.currentTarget.classList.remove('open'); });
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
+// ---- Form handling ----
+const overlay = $('formOverlay');
+const form = $('itemForm');
+
+function openForm(item) {
+  form.reset();
+  $('f-currency').value = 'USD';
+  $('btnDeleteInForm').style.display = 'none';
+
+  if (item) {
+    $('formHeading').textContent = 'Edit Itinerary Item';
+    $('f-id').value = item.id;
+    $('f-date').value = item.item_date;
+    $('f-start').value = item.start_time || '';
+    $('f-end').value = item.end_time || '';
+    $('f-category').value = item.category || 'activity';
+    $('f-title').value = item.title || '';
+    $('f-place-name').value = item.place_name || '';
+    $('f-place-link').value = item.place_link || '';
+    $('f-reservation-name').value = item.reservation_name || '';
+    $('f-confirmation').value = item.confirmation_code || '';
+    $('f-price').value = item.price ?? '';
+    $('f-currency').value = item.currency || 'USD';
+    $('f-ticket-data').value = item.ticket_data || '';
+    $('f-notes').value = item.notes || '';
+    $('btnDeleteInForm').style.display = 'inline-block';
+    $('btnDeleteInForm').onclick = () => { deleteItem(item.id); closeForm(); };
+  } else {
+    $('formHeading').textContent = 'New Itinerary Item';
+    $('f-id').value = '';
+    $('f-date').value = new Date().toISOString().slice(0, 10);
+  }
+  overlay.classList.add('open');
+  $('f-title').focus();
+}
+
+function closeForm() {
+  overlay.classList.remove('open');
+}
+
+$('btnNew').addEventListener('click', () => openForm(null));
+$('btnCancel').addEventListener('click', closeForm);
+overlay.addEventListener('click', (e) => { if (e.target === overlay) closeForm(); });
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = $('f-id').value;
+  const payload = {
+    item_date: $('f-date').value,
+    start_time: $('f-start').value || null,
+    end_time: $('f-end').value || null,
+    category: $('f-category').value,
+    title: $('f-title').value.trim(),
+    place_name: $('f-place-name').value.trim() || null,
+    place_link: $('f-place-link').value.trim() || null,
+    reservation_name: $('f-reservation-name').value.trim() || null,
+    confirmation_code: $('f-confirmation').value.trim() || null,
+    price: $('f-price').value === '' ? null : Number($('f-price').value),
+    currency: $('f-currency').value.trim() || 'USD',
+    ticket_data: $('f-ticket-data').value.trim() || null,
+    notes: $('f-notes').value.trim() || null
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await sb.from(TABLE).update(payload).eq('id', id));
+  } else {
+    ({ error } = await sb.from(TABLE).insert(payload));
+  }
+
+  if (error) {
+    console.error(error);
+    toast('Save failed: ' + error.message, true);
+    return;
+  }
+  toast(id ? 'Item updated' : 'Item added');
+  closeForm();
+  loadItems();
+});
+
+async function deleteItem(id) {
+  if (!confirm('Delete this itinerary item? This cannot be undone.')) return;
+  const { error } = await sb.from(TABLE).delete().eq('id', id);
+  if (error) {
+    toast('Delete failed: ' + error.message, true);
+    return;
+  }
+  toast('Item deleted');
+  loadItems();
+}
+
+$('search').addEventListener('input', render);
+$('filterCategory').addEventListener('change', render);
+
+loadItems();
+</script>
+</body>
+</html>
