@@ -370,6 +370,30 @@
     font-size: 13.5px;
     margin-bottom: 16px;
   }
+  .reminders-box {
+    background: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffe69c;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+  }
+  .reminders-heading { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .reminder-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: 13.5px;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(0,0,0,.08);
+  }
+  .reminder-row:first-of-type { border-top: none; }
+  .reminder-row.overdue { color: #b42318; font-weight: 600; }
+  .reminder-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .preset-btn { padding: 6px 10px; font-size: 12.5px; }
+  .booking-pill { background: #fef3c7 !important; color: #92400e !important; }
   .hint { font-size: 12.5px; color: var(--text-dim); }
   .hint a { color: var(--accent); }
   .pac-container { z-index: 10000; }
@@ -423,6 +447,8 @@
       Couldn't reach the database tables. Run <code>schema.sql</code> in your Supabase
       project's SQL Editor, then reload this page.
     </div>
+
+    <div id="remindersSection"></div>
 
     <div class="toolbar">
       <input type="text" id="search" placeholder="Search title, place, notes…" />
@@ -526,6 +552,25 @@
           <label>Opening hours</label>
           <textarea id="f-opening-hours" placeholder="Auto-filled when available, one line per day"></textarea>
           <input type="hidden" id="f-opening-hours-periods" />
+        </div>
+        <div class="full">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="f-needs-booking" style="width:auto;" /> Needs advance booking / reservation
+          </label>
+          <div id="bookingRow" style="display:none; margin-top:8px;">
+            <label>Remind me to book this many days before</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="number" id="f-remind-days" min="1" placeholder="e.g. 30" style="max-width:110px;" />
+              <button type="button" class="btn btn-secondary preset-btn" data-days="7">1 week</button>
+              <button type="button" class="btn btn-secondary preset-btn" data-days="14">2 weeks</button>
+              <button type="button" class="btn btn-secondary preset-btn" data-days="30">1 month</button>
+              <button type="button" class="btn btn-secondary preset-btn" data-days="60">2 months</button>
+              <button type="button" class="btn btn-secondary preset-btn" data-days="90">3 months</button>
+            </div>
+            <label style="display:flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;">
+              <input type="checkbox" id="f-is-booked" style="width:auto;" /> Already booked
+            </label>
+          </div>
         </div>
         <div>
           <label>Reservation name</label>
@@ -895,6 +940,68 @@ async function loadItems() {
   statusEl.textContent = `synced · ${data.length} item${data.length === 1 ? '' : 's'}`;
   items = data;
   render();
+  renderReminders();
+}
+
+// Booking deadline = item_date minus the lead time the user asked to be
+// reminded (e.g. "remind me 1 month / 30 days before").
+function getBookByDate(item) {
+  if (!item.needs_booking || !item.remind_days_before || !item.item_date) return null;
+  const d = new Date(item.item_date + 'T00:00:00');
+  d.setDate(d.getDate() - item.remind_days_before);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderReminders() {
+  const el = $('remindersSection');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pending = items
+    .map((item) => ({ item, bookBy: getBookByDate(item) }))
+    .filter((x) => x.bookBy && !x.item.is_booked)
+    .sort((a, b) => a.bookBy.localeCompare(b.bookBy));
+
+  if (pending.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `<div class="reminders-box">
+    <div class="reminders-heading">📌 Booking Reminders</div>
+    ${pending.map(({ item, bookBy }) => {
+      const overdue = bookBy < todayStr;
+      const daysDiff = Math.round((new Date(bookBy + 'T00:00:00') - new Date(todayStr + 'T00:00:00')) / 86400000);
+      const whenText = overdue
+        ? `overdue by ${Math.abs(daysDiff)} day${Math.abs(daysDiff) === 1 ? '' : 's'}`
+        : (daysDiff === 0 ? 'book today' : `in ${daysDiff} day${daysDiff === 1 ? '' : 's'}`);
+      return `<div class="reminder-row ${overdue ? 'overdue' : ''}">
+        <span>${escapeHtml(item.title)} — book by ${formatShortDate(bookBy)} (${whenText})</span>
+        <div class="reminder-actions">
+          <button class="icon-btn" data-remind-edit="${item.id}">Edit</button>
+          <button class="icon-btn" data-remind-done="${item.id}">Mark booked ✓</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  el.querySelectorAll('[data-remind-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = items.find((i) => i.id === btn.dataset.remindEdit);
+      if (item) openForm(item);
+    });
+  });
+  el.querySelectorAll('[data-remind-done]').forEach((btn) => {
+    btn.addEventListener('click', () => markBooked(btn.dataset.remindDone));
+  });
+}
+
+async function markBooked(id) {
+  const { error } = await sb.from(ITEMS_TABLE).update({ is_booked: true }).eq('id', id);
+  if (error) {
+    toast('Failed to update: ' + error.message, true);
+    return;
+  }
+  toast('Marked as booked');
+  loadItems();
 }
 
 function formatDateHeading(dateStr) {
@@ -1042,6 +1149,10 @@ function renderCard(item) {
   const checkoutLine = item.checkout_date
     ? `<div class="row-line">🚪 Check-out ${formatShortDate(item.checkout_date)}</div>`
     : '';
+  const bookByDate = getBookByDate(item);
+  const bookingPill = (bookByDate && !item.is_booked)
+    ? `<span class="pill booking-pill">📌 Book by ${formatShortDate(bookByDate)}</span>`
+    : '';
 
   let reservationLine = '';
   if (item.reservation_name || item.confirmation_code) {
@@ -1056,6 +1167,7 @@ function renderCard(item) {
         <span class="card-time">${timeRange || 'All day'}</span>
         <span class="pill">${escapeHtml(item.category || 'other')}</span>
         ${item.flight_number ? `<span class="pill">✈ ${escapeHtml(item.flight_number)}</span>` : ''}
+        ${bookingPill}
         ${price ? `<span class="price-badge">${price}</span>` : ''}
       </div>
       <div class="card-title">${escapeHtml(item.title)}</div>
@@ -1166,6 +1278,14 @@ function toggleFlightRow() {
 }
 $('f-category').addEventListener('change', toggleFlightRow);
 
+function toggleBookingRow() {
+  $('bookingRow').style.display = $('f-needs-booking').checked ? 'block' : 'none';
+}
+$('f-needs-booking').addEventListener('change', toggleBookingRow);
+document.querySelectorAll('.preset-btn').forEach((btn) => {
+  btn.addEventListener('click', () => { $('f-remind-days').value = btn.dataset.days; });
+});
+
 function setPhotoPreview(url) {
   $('f-photo-url').value = url || '';
   if (url) {
@@ -1198,6 +1318,9 @@ function openForm(item) {
     $('f-opening-hours-periods').value = item.opening_hours_periods || '';
     $('f-flight-number').value = item.flight_number || '';
     $('f-checkout-date').value = item.checkout_date || '';
+    $('f-needs-booking').checked = !!item.needs_booking;
+    $('f-remind-days').value = item.remind_days_before ?? '';
+    $('f-is-booked').checked = !!item.is_booked;
     $('f-reservation-name').value = item.reservation_name || '';
     $('f-confirmation').value = item.confirmation_code || '';
     $('f-price').value = item.price ?? '';
@@ -1213,6 +1336,7 @@ function openForm(item) {
     $('f-date').value = new Date().toISOString().slice(0, 10);
   }
   toggleFlightRow();
+  toggleBookingRow();
   overlay.classList.add('open');
   $('f-title').focus();
 }
@@ -1243,6 +1367,10 @@ form.addEventListener('submit', async (e) => {
     photo_url: $('f-photo-url').value.trim() || null,
     flight_number: $('f-flight-number').value.trim() || null,
     checkout_date: $('f-checkout-date').value || null,
+    needs_booking: $('f-needs-booking').checked,
+    remind_days_before: $('f-needs-booking').checked && $('f-remind-days').value !== ''
+      ? Number($('f-remind-days').value) : null,
+    is_booked: $('f-is-booked').checked,
     reservation_name: $('f-reservation-name').value.trim() || null,
     confirmation_code: $('f-confirmation').value.trim() || null,
     price: $('f-price').value === '' ? null : Number($('f-price').value),
