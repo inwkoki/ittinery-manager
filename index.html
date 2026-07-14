@@ -48,7 +48,7 @@
     padding: 28px 20px;
   }
   .header-inner {
-    max-width: 900px;
+    max-width: 960px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -60,6 +60,12 @@
     margin: 0;
     font-size: 22px;
   }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
   .header-inner input#tripTitle {
     background: transparent;
     border: none;
@@ -67,11 +73,11 @@
     font-size: 22px;
     font-weight: 700;
     width: 100%;
-    max-width: 420px;
+    max-width: 360px;
   }
   .header-inner input#tripTitle::placeholder { color: rgba(255,255,255,.75); }
   .header-inner input#tripTitle:focus { outline: 1px dashed rgba(255,255,255,.6); }
-  #status {
+  #status, #tripsStatus {
     font-size: 12px;
     opacity: .9;
   }
@@ -83,13 +89,14 @@
     font-weight: 600;
     cursor: pointer;
     transition: transform .05s ease, opacity .15s ease;
+    white-space: nowrap;
   }
   .btn:active { transform: scale(.97); }
   .btn-primary { background: #fff; color: var(--accent); }
   .btn-primary:hover { opacity: .9; }
   .btn-ghost { background: rgba(255,255,255,.15); color: #fff; }
   main {
-    max-width: 900px;
+    max-width: 960px;
     margin: 0 auto;
     padding: 20px;
   }
@@ -108,6 +115,39 @@
     font-size: 14px;
   }
   .toolbar input[type="text"] { flex: 1; min-width: 180px; }
+
+  /* Trips landing page */
+  .trips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+  }
+  .trip-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform .12s ease;
+  }
+  .trip-card:hover { transform: translateY(-2px); }
+  .trip-card .cover {
+    height: 100px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px;
+  }
+  .trip-card .body { padding: 14px; }
+  .trip-card .title { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  .trip-card .meta { font-size: 12.5px; color: var(--text-dim); }
+  .trip-card-actions {
+    position: absolute; top: 8px; right: 8px;
+    display: flex; gap: 6px; z-index: 2;
+  }
+  .trip-card-actions .icon-btn { padding: 5px 8px; font-size: 12px; }
+
   .day-group { margin-bottom: 26px; }
   .day-heading {
     position: sticky;
@@ -130,8 +170,18 @@
     padding: 14px 16px;
     margin-bottom: 12px;
     display: flex;
-    gap: 14px;
+    gap: 12px;
     align-items: flex-start;
+  }
+  .card.dragging { opacity: .4; }
+  .drag-handle {
+    cursor: grab;
+    color: var(--text-dim);
+    font-size: 18px;
+    line-height: 1;
+    padding-top: 4px;
+    user-select: none;
+    flex-shrink: 0;
   }
   .card .main-col { flex: 1; min-width: 0; }
   .card-top {
@@ -181,16 +231,16 @@
   }
   .row-line a:hover { text-decoration: underline; }
   .notes { font-size: 13.5px; margin-top: 6px; white-space: pre-wrap; }
-  .qr-thumb {
+  .qr-thumb, .photo-thumb {
     width: 64px;
     height: 64px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    cursor: pointer;
     background: #fff;
-    padding: 4px;
     flex-shrink: 0;
   }
+  .qr-thumb { cursor: pointer; padding: 4px; }
+  .photo-thumb { object-fit: cover; }
   .card-actions {
     display: flex;
     flex-direction: column;
@@ -309,49 +359,86 @@
     font-size: 13.5px;
     margin-bottom: 16px;
   }
+  .hint { font-size: 12.5px; color: var(--text-dim); }
+  .hint a { color: var(--accent); }
+  .pac-container { z-index: 10000; }
+  .photo-preview-wrap { position: relative; display: inline-block; margin-top: 8px; }
+  .photo-preview-wrap img { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
+  .photo-preview-wrap button {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    border: none; background: var(--danger); color: #fff;
+    font-size: 12px; line-height: 1; cursor: pointer;
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-inner">
-    <input id="tripTitle" placeholder="My Trip Itinerary" />
-    <div style="display:flex; align-items:center; gap:12px;">
-      <span id="status">connecting…</span>
-      <button class="btn btn-primary" id="btnNew">+ New Item</button>
+<!-- ================= TRIPS LANDING PAGE ================= -->
+<div id="tripsView">
+  <header>
+    <div class="header-inner">
+      <h1>🧳 My Trips</h1>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span id="tripsStatus">connecting…</span>
+        <button class="btn btn-ghost" id="btnSettings">⚙</button>
+        <button class="btn btn-primary" id="btnNewTrip">+ New Trip</button>
+      </div>
     </div>
-  </div>
-</header>
+  </header>
+  <main>
+    <div id="tripsList" class="trips-grid"></div>
+  </main>
+</div>
 
-<main>
-  <div id="setupBanner" class="banner" style="display:none;">
-    Couldn't reach the <code>itinerary_items</code> table. Run
-    <code>schema.sql</code> in your Supabase project's SQL Editor, then reload this page.
-  </div>
+<!-- ================= ITINERARY VIEW ================= -->
+<div id="itineraryView" style="display:none;">
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <button class="btn btn-ghost" id="btnBackToTrips">← Trips</button>
+        <input id="tripTitle" placeholder="Trip name" />
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span id="status">connecting…</span>
+        <button class="btn btn-ghost" id="btnSettings2">⚙</button>
+        <button class="btn btn-primary" id="btnNew">+ New Item</button>
+      </div>
+    </div>
+  </header>
 
-  <div class="toolbar">
-    <input type="text" id="search" placeholder="Search title, place, notes…" />
-    <select id="filterCategory">
-      <option value="">All categories</option>
-      <option value="flight">Flight</option>
-      <option value="train">Train</option>
-      <option value="bus">Bus</option>
-      <option value="car">Car / Transfer</option>
-      <option value="lodging">Lodging</option>
-      <option value="activity">Activity</option>
-      <option value="food">Food</option>
-      <option value="other">Other</option>
-    </select>
-  </div>
+  <main>
+    <div id="setupBanner" class="banner" style="display:none;">
+      Couldn't reach the database tables. Run <code>schema.sql</code> in your Supabase
+      project's SQL Editor, then reload this page.
+    </div>
 
-  <div id="list"></div>
-</main>
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="Search title, place, notes…" />
+      <select id="filterCategory">
+        <option value="">All categories</option>
+        <option value="flight">Flight</option>
+        <option value="train">Train</option>
+        <option value="bus">Bus</option>
+        <option value="car">Car / Transfer</option>
+        <option value="lodging">Lodging</option>
+        <option value="activity">Activity</option>
+        <option value="food">Food</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
 
+    <div id="list"></div>
+  </main>
+</div>
+
+<!-- ================= ITEM FORM MODAL ================= -->
 <div class="overlay" id="formOverlay">
   <div class="modal">
     <h2 id="formHeading">New Itinerary Item</h2>
     <form id="itemForm">
       <input type="hidden" id="f-id" />
+      <input type="hidden" id="f-photo-url" />
       <div class="form-grid">
         <div>
           <label>Date *</label>
@@ -370,6 +457,20 @@
             <option value="other">Other</option>
           </select>
         </div>
+
+        <div class="full" id="flightLookupRow" style="display:none;">
+          <label>Flight number</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="f-flight-number" placeholder="e.g. NH204" style="flex:1;" />
+            <button type="button" class="btn btn-secondary" id="btnLookupFlight">Look up ✈</button>
+          </div>
+          <div class="hint" id="flightLookupHint" style="margin-top:4px;">
+            Fills in airports, scheduled times, terminal &amp; gate. Free-tier data is the
+            latest known schedule for this flight number (not date-specific) — confirm
+            exact times closer to departure. For connections, add each leg as its own item.
+          </div>
+        </div>
+
         <div>
           <label>Start time</label>
           <input type="time" id="f-start" />
@@ -384,11 +485,26 @@
         </div>
         <div class="full">
           <label>Place name</label>
-          <input type="text" id="f-place-name" placeholder="e.g. Narita Airport" />
+          <input type="text" id="f-place-name" placeholder="Start typing to search a place…" autocomplete="off" />
+          <div class="hint" id="placeSearchHint" style="display:none; margin-top:4px;">
+            🔎 Add a Google Maps API key in Settings (⚙) to search places and auto-fill address & opening hours.
+          </div>
+          <div class="photo-preview-wrap" id="photoPreviewWrap" style="display:none;">
+            <img id="photoPreviewImg" alt="Place photo" />
+            <button type="button" id="btnRemovePhoto" title="Remove photo">✕</button>
+          </div>
         </div>
         <div class="full">
           <label>Place link (Google Maps / website)</label>
           <input type="url" id="f-place-link" placeholder="https://maps.google.com/…" />
+        </div>
+        <div class="full">
+          <label>Address</label>
+          <input type="text" id="f-address" placeholder="Auto-filled when you pick a place above" />
+        </div>
+        <div class="full">
+          <label>Opening hours</label>
+          <textarea id="f-opening-hours" placeholder="Auto-filled when available, one line per day"></textarea>
         </div>
         <div>
           <label>Reservation name</label>
@@ -426,6 +542,36 @@
   </div>
 </div>
 
+<!-- ================= TRIP FORM MODAL ================= -->
+<div class="overlay" id="tripFormOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h2 id="tripFormHeading">New Trip</h2>
+    <form id="tripForm">
+      <input type="hidden" id="t-id" />
+      <label>Trip name *</label>
+      <input type="text" id="t-name" required placeholder="e.g. Japan 2026" />
+      <div class="form-grid" style="margin-top:12px;">
+        <div>
+          <label>Start date</label>
+          <input type="date" id="t-start" />
+        </div>
+        <div>
+          <label>End date</label>
+          <input type="date" id="t-end" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn icon-btn danger" id="btnDeleteTripInForm" style="display:none;">Delete trip</button>
+        <div class="right">
+          <button type="button" class="btn btn-secondary" id="btnTripCancel">Cancel</button>
+          <button type="submit" class="btn btn-save">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= QR LIGHTBOX ================= -->
 <div class="overlay" id="qrOverlay">
   <div class="lightbox">
     <img id="qrLarge" alt="Ticket QR code" />
@@ -436,12 +582,52 @@
   </div>
 </div>
 
+<!-- ================= SETTINGS MODAL ================= -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:460px;">
+    <h2>Settings</h2>
+    <label>Google Maps API key</label>
+    <input type="text" id="gmapsKeyInput" placeholder="Paste your Google Maps API key" />
+    <div class="hint" style="margin-top:8px;">
+      Enables the place search box (type a name → pick from a dropdown → auto-fill
+      address, opening hours &amp; photo). Needs a key from
+      <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener">Google Cloud Console</a>
+      with the <b>Places API</b> and <b>Maps JavaScript API</b> enabled. Stored only in
+      this browser's local storage.
+    </div>
+
+    <label style="margin-top:18px;">AviationStack API key <span class="hint">(optional, for flight lookup)</span></label>
+    <input type="text" id="aviationKeyInput" placeholder="Paste your AviationStack API key" />
+    <div class="hint" style="margin-top:8px;">
+      Powers "Look up flight ✈" (airports, scheduled times, terminal/gate). Free key at
+      <a href="https://aviationstack.com/" target="_blank" rel="noopener">aviationstack.com</a>
+      (100 requests/month free). The free tier returns the most recent/live schedule for a
+      flight number rather than a specific future date — treat it as a quick reference.
+    </div>
+
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn btn-secondary" id="btnSettingsCancel">Cancel</button>
+        <button type="button" class="btn btn-save" id="btnSettingsSave">Save & Reload</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const SUPABASE_URL = 'https://pyeeqlnnzsencnitobwo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vviYmFsZjGvNK0cs3iWBSw_B5Px2ikp';
-const TABLE = 'itinerary_items';
+const ITEMS_TABLE = 'itinerary_items';
+const TRIPS_TABLE = 'trips';
+const GMAPS_KEY_STORAGE = 'itinerary_gmaps_api_key';
+const AVIATIONSTACK_KEY_STORAGE = 'itinerary_aviationstack_api_key';
+// Client-side key by design (Google Places is meant to run in the browser).
+// Restrict it in Google Cloud Console to Places API + Maps JavaScript API
+// with a daily quota cap, since this repo is public.
+const DEFAULT_GMAPS_KEY = 'AIzaSyBI-yd6YBUDhcLchIN9SKpwRY8rBtR5OKk';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -451,6 +637,8 @@ const CATEGORY_COLORS = {
 };
 
 let items = [];
+let trips = [];
+let currentTripId = null;
 
 const $ = (id) => document.getElementById(id);
 const listEl = $('list');
@@ -466,20 +654,213 @@ function toast(msg, isError) {
   toast._timer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-// ---- Trip title persistence (local, purely cosmetic) ----
-tripTitleEl.value = localStorage.getItem('itinerary_trip_title') || '';
-tripTitleEl.addEventListener('input', () => {
-  localStorage.setItem('itinerary_trip_title', tripTitleEl.value);
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+
+// =================================================================
+// TRIPS (landing page)
+// =================================================================
+
+async function loadTrips() {
+  $('tripsStatus').textContent = 'loading…';
+  const { data, error } = await sb
+    .from(TRIPS_TABLE)
+    .select('*')
+    .order('start_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    $('tripsStatus').textContent = 'connection error';
+    $('tripsList').innerHTML = `
+      <div class="empty-state">
+        <div class="big">⚠️</div>
+        <div>Couldn't reach the <code>trips</code> table. Run <code>schema.sql</code> in your Supabase SQL Editor, then reload.</div>
+      </div>`;
+    return;
+  }
+  trips = data;
+
+  const { data: allItems } = await sb.from(ITEMS_TABLE).select('trip_id');
+  const counts = {};
+  if (allItems) {
+    for (const r of allItems) counts[r.trip_id] = (counts[r.trip_id] || 0) + 1;
+  }
+
+  $('tripsStatus').textContent = `synced · ${trips.length} trip${trips.length === 1 ? '' : 's'}`;
+  renderTrips(counts);
+}
+
+function renderTrips(counts) {
+  const el = $('tripsList');
+  if (trips.length === 0) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="big">🧳</div>
+        <div>No trips yet — click "+ New Trip" to plan your first one.</div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = '';
+  for (const trip of trips) {
+    const card = document.createElement('div');
+    card.className = 'trip-card';
+    const range = [trip.start_date, trip.end_date]
+      .filter(Boolean)
+      .map((d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))
+      .join(' – ');
+    const count = counts[trip.id] || 0;
+    card.innerHTML = `
+      <div class="trip-card-actions">
+        <button class="icon-btn trip-edit" title="Edit trip">✎</button>
+        <button class="icon-btn danger trip-delete" title="Delete trip">✕</button>
+      </div>
+      <div class="cover">🧳</div>
+      <div class="body">
+        <div class="title">${escapeHtml(trip.name)}</div>
+        <div class="meta">${range || 'No dates set'} · ${count} item${count === 1 ? '' : 's'}</div>
+      </div>`;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.trip-edit') || e.target.closest('.trip-delete')) return;
+      openTrip(trip);
+    });
+    card.querySelector('.trip-edit').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTripForm(trip);
+    });
+    card.querySelector('.trip-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTrip(trip.id, trip.name);
+    });
+    el.appendChild(card);
+  }
+}
+
+async function deleteTrip(id, name) {
+  if (!confirm(`Delete trip "${name}" and all its itinerary items? This cannot be undone.`)) return;
+  const { error } = await sb.from(TRIPS_TABLE).delete().eq('id', id);
+  if (error) {
+    toast('Delete failed: ' + error.message, true);
+    return;
+  }
+  toast('Trip deleted');
+  loadTrips();
+}
+
+const tripFormOverlay = $('tripFormOverlay');
+const tripForm = $('tripForm');
+
+function openTripForm(trip) {
+  tripForm.reset();
+  $('btnDeleteTripInForm').style.display = trip ? 'inline-block' : 'none';
+  if (trip) {
+    $('tripFormHeading').textContent = 'Edit Trip';
+    $('t-id').value = trip.id;
+    $('t-name').value = trip.name;
+    $('t-start').value = trip.start_date || '';
+    $('t-end').value = trip.end_date || '';
+    $('btnDeleteTripInForm').onclick = () => { tripFormOverlay.classList.remove('open'); deleteTrip(trip.id, trip.name); };
+  } else {
+    $('tripFormHeading').textContent = 'New Trip';
+    $('t-id').value = '';
+  }
+  tripFormOverlay.classList.add('open');
+  $('t-name').focus();
+}
+
+$('btnNewTrip').addEventListener('click', () => openTripForm(null));
+$('btnTripCancel').addEventListener('click', () => tripFormOverlay.classList.remove('open'));
+tripFormOverlay.addEventListener('click', (e) => { if (e.target === tripFormOverlay) tripFormOverlay.classList.remove('open'); });
+
+tripForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = $('t-id').value;
+  const payload = {
+    name: $('t-name').value.trim(),
+    start_date: $('t-start').value || null,
+    end_date: $('t-end').value || null
+  };
+  let error;
+  if (id) {
+    ({ error } = await sb.from(TRIPS_TABLE).update(payload).eq('id', id));
+  } else {
+    ({ error } = await sb.from(TRIPS_TABLE).insert(payload));
+  }
+  if (error) {
+    toast('Save failed: ' + error.message, true);
+    return;
+  }
+  toast(id ? 'Trip updated' : 'Trip created');
+  tripFormOverlay.classList.remove('open');
+  loadTrips();
 });
 
-// ---- Data loading ----
+function openTrip(trip) {
+  currentTripId = trip.id;
+  location.hash = 'trip=' + trip.id;
+  showItineraryView(trip);
+}
+
+function showItineraryView(trip) {
+  $('tripsView').style.display = 'none';
+  $('itineraryView').style.display = 'block';
+  tripTitleEl.value = trip.name;
+  loadItems();
+}
+
+function showTripsView() {
+  currentTripId = null;
+  $('itineraryView').style.display = 'none';
+  $('tripsView').style.display = 'block';
+  loadTrips();
+}
+
+$('btnBackToTrips').addEventListener('click', () => {
+  location.hash = '';
+  showTripsView();
+});
+
+tripTitleEl.addEventListener('change', async () => {
+  if (!currentTripId) return;
+  const name = tripTitleEl.value.trim() || 'Untitled trip';
+  tripTitleEl.value = name;
+  const { error } = await sb.from(TRIPS_TABLE).update({ name }).eq('id', currentTripId);
+  toast(error ? 'Failed to rename trip' : 'Trip renamed', !!error);
+});
+
+async function routeFromHash() {
+  const match = location.hash.match(/trip=([a-f0-9-]+)/i);
+  if (match) {
+    const tripId = match[1];
+    const { data, error } = await sb.from(TRIPS_TABLE).select('*').eq('id', tripId).single();
+    if (error || !data) {
+      toast('Trip not found', true);
+      showTripsView();
+      return;
+    }
+    currentTripId = tripId;
+    showItineraryView(data);
+  } else {
+    showTripsView();
+  }
+}
+window.addEventListener('hashchange', routeFromHash);
+
+// =================================================================
+// ITINERARY ITEMS (within a trip)
+// =================================================================
+
 async function loadItems() {
   statusEl.textContent = 'loading…';
   const { data, error } = await sb
-    .from(TABLE)
+    .from(ITEMS_TABLE)
     .select('*')
+    .eq('trip_id', currentTripId)
     .order('item_date', { ascending: true })
-    .order('start_time', { ascending: true, nullsFirst: false });
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
 
   if (error) {
     console.error(error);
@@ -501,11 +882,7 @@ function formatDateHeading(dateStr) {
 
 function formatTime(t) {
   if (!t) return '';
-  const [h, m] = t.split(':');
-  const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const h12 = ((hour + 11) % 12) + 1;
-  return `${h12}:${m} ${ampm}`;
+  return t.slice(0, 5); // 24-hour HH:MM, straight from the <input type="time"> value
 }
 
 function formatPrice(price, currency) {
@@ -521,7 +898,7 @@ function matchesFilters(item) {
   const cat = $('filterCategory').value;
   if (cat && item.category !== cat) return false;
   if (!q) return true;
-  const hay = [item.title, item.place_name, item.notes, item.reservation_name]
+  const hay = [item.title, item.place_name, item.address, item.notes, item.reservation_name, item.flight_number]
     .filter(Boolean).join(' ').toLowerCase();
   return hay.includes(q);
 }
@@ -547,10 +924,12 @@ function render() {
   for (const date of Object.keys(groups).sort()) {
     const section = document.createElement('div');
     section.className = 'day-group';
+    section.dataset.date = date;
     section.innerHTML = `<div class="day-heading">${formatDateHeading(date)}</div>`;
     for (const item of groups[date]) {
       section.appendChild(renderCard(item));
     }
+    attachDayDragEvents(section);
     listEl.appendChild(section);
   }
 
@@ -560,6 +939,8 @@ function render() {
 function renderCard(item) {
   const card = document.createElement('div');
   card.className = 'card';
+  card.draggable = true;
+  card.dataset.id = item.id;
   card.style.borderLeftColor = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.other;
 
   const timeRange = [formatTime(item.start_time), formatTime(item.end_time)].filter(Boolean).join(' – ');
@@ -573,20 +954,28 @@ function renderCard(item) {
       : escapeHtml(label)}</div>`;
   }
 
+  const addressLine = item.address ? `<div class="row-line">🏠 ${escapeHtml(item.address)}</div>` : '';
+  const hoursLine = item.opening_hours ? `<div class="notes">🕒 ${escapeHtml(item.opening_hours)}</div>` : '';
+
   let reservationLine = '';
   if (item.reservation_name || item.confirmation_code) {
     reservationLine = `<div class="row-line">🎫 ${escapeHtml(item.reservation_name || 'Reservation')}${item.confirmation_code ? ` · Conf# ${escapeHtml(item.confirmation_code)}` : ''}</div>`;
   }
 
   card.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder">⠿</span>
+    ${item.photo_url ? `<img class="photo-thumb" src="${escapeAttr(item.photo_url)}" alt="" />` : ''}
     <div class="main-col">
       <div class="card-top">
         <span class="card-time">${timeRange || 'All day'}</span>
         <span class="pill">${escapeHtml(item.category || 'other')}</span>
+        ${item.flight_number ? `<span class="pill">✈ ${escapeHtml(item.flight_number)}</span>` : ''}
         ${price ? `<span class="price-badge">${price}</span>` : ''}
       </div>
       <div class="card-title">${escapeHtml(item.title)}</div>
       ${placeLine}
+      ${addressLine}
+      ${hoursLine}
       ${reservationLine}
       ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
     </div>
@@ -600,10 +989,57 @@ function renderCard(item) {
   card.querySelector('[data-edit]').addEventListener('click', () => openForm(item));
   card.querySelector('[data-del]').addEventListener('click', () => deleteItem(item.id));
   const qrImg = card.querySelector('.qr-thumb');
-  if (qrImg) {
-    qrImg.addEventListener('click', () => openQrLightbox(item.ticket_data));
-  }
+  if (qrImg) qrImg.addEventListener('click', () => openQrLightbox(item.ticket_data));
+
+  makeDraggable(card);
   return card;
+}
+
+// ---- Drag to reorder within a day ----
+function makeDraggable(card) {
+  card.addEventListener('dragstart', () => card.classList.add('dragging'));
+  card.addEventListener('dragend', async () => {
+    card.classList.remove('dragging');
+    const dayGroup = card.closest('.day-group');
+    if (dayGroup) await persistDayOrder(dayGroup);
+  });
+}
+
+function attachDayDragEvents(dayGroupEl) {
+  dayGroupEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const dragging = listEl.querySelector('.card.dragging');
+    if (!dragging || !dayGroupEl.contains(dragging)) return;
+    const afterElement = getDragAfterElement(dayGroupEl, e.clientY);
+    if (afterElement == null) dayGroupEl.appendChild(dragging);
+    else dayGroupEl.insertBefore(dragging, afterElement);
+  });
+}
+
+function getDragAfterElement(container, y) {
+  const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+  return cards.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: child };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+}
+
+async function persistDayOrder(dayGroupEl) {
+  const cards = [...dayGroupEl.querySelectorAll('.card')];
+  const updates = cards.map((card, idx) => ({ id: card.dataset.id, sort_order: idx }));
+  for (const u of updates) {
+    const it = items.find((i) => i.id === u.id);
+    if (it) it.sort_order = u.sort_order;
+  }
+  try {
+    await Promise.all(updates.map((u) => sb.from(ITEMS_TABLE).update({ sort_order: u.sort_order }).eq('id', u.id)));
+    toast('Order updated');
+  } catch (e) {
+    console.error(e);
+    toast('Failed to save new order', true);
+  }
 }
 
 async function renderQrThumbnails() {
@@ -632,19 +1068,31 @@ async function openQrLightbox(ticketData) {
 $('btnCloseQr').addEventListener('click', () => $('qrOverlay').classList.remove('open'));
 $('qrOverlay').addEventListener('click', (e) => { if (e.target.id === 'qrOverlay') e.currentTarget.classList.remove('open'); });
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-function escapeAttr(str) { return escapeHtml(str); }
-
-// ---- Form handling ----
+// ---- Item form ----
 const overlay = $('formOverlay');
 const form = $('itemForm');
+
+function toggleFlightRow() {
+  $('flightLookupRow').style.display = $('f-category').value === 'flight' ? 'block' : 'none';
+}
+$('f-category').addEventListener('change', toggleFlightRow);
+
+function setPhotoPreview(url) {
+  $('f-photo-url').value = url || '';
+  if (url) {
+    $('photoPreviewImg').src = url;
+    $('photoPreviewWrap').style.display = 'inline-block';
+  } else {
+    $('photoPreviewWrap').style.display = 'none';
+  }
+}
+$('btnRemovePhoto').addEventListener('click', () => setPhotoPreview(''));
 
 function openForm(item) {
   form.reset();
   $('f-currency').value = 'USD';
   $('btnDeleteInForm').style.display = 'none';
+  setPhotoPreview('');
 
   if (item) {
     $('formHeading').textContent = 'Edit Itinerary Item';
@@ -656,12 +1104,16 @@ function openForm(item) {
     $('f-title').value = item.title || '';
     $('f-place-name').value = item.place_name || '';
     $('f-place-link').value = item.place_link || '';
+    $('f-address').value = item.address || '';
+    $('f-opening-hours').value = item.opening_hours || '';
+    $('f-flight-number').value = item.flight_number || '';
     $('f-reservation-name').value = item.reservation_name || '';
     $('f-confirmation').value = item.confirmation_code || '';
     $('f-price').value = item.price ?? '';
     $('f-currency').value = item.currency || 'USD';
     $('f-ticket-data').value = item.ticket_data || '';
     $('f-notes').value = item.notes || '';
+    setPhotoPreview(item.photo_url || '');
     $('btnDeleteInForm').style.display = 'inline-block';
     $('btnDeleteInForm').onclick = () => { deleteItem(item.id); closeForm(); };
   } else {
@@ -669,6 +1121,7 @@ function openForm(item) {
     $('f-id').value = '';
     $('f-date').value = new Date().toISOString().slice(0, 10);
   }
+  toggleFlightRow();
   overlay.classList.add('open');
   $('f-title').focus();
 }
@@ -685,6 +1138,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = $('f-id').value;
   const payload = {
+    trip_id: currentTripId,
     item_date: $('f-date').value,
     start_time: $('f-start').value || null,
     end_time: $('f-end').value || null,
@@ -692,6 +1146,10 @@ form.addEventListener('submit', async (e) => {
     title: $('f-title').value.trim(),
     place_name: $('f-place-name').value.trim() || null,
     place_link: $('f-place-link').value.trim() || null,
+    address: $('f-address').value.trim() || null,
+    opening_hours: $('f-opening-hours').value.trim() || null,
+    photo_url: $('f-photo-url').value.trim() || null,
+    flight_number: $('f-flight-number').value.trim() || null,
     reservation_name: $('f-reservation-name').value.trim() || null,
     confirmation_code: $('f-confirmation').value.trim() || null,
     price: $('f-price').value === '' ? null : Number($('f-price').value),
@@ -699,12 +1157,13 @@ form.addEventListener('submit', async (e) => {
     ticket_data: $('f-ticket-data').value.trim() || null,
     notes: $('f-notes').value.trim() || null
   };
+  if (!id) payload.sort_order = Date.now();
 
   let error;
   if (id) {
-    ({ error } = await sb.from(TABLE).update(payload).eq('id', id));
+    ({ error } = await sb.from(ITEMS_TABLE).update(payload).eq('id', id));
   } else {
-    ({ error } = await sb.from(TABLE).insert(payload));
+    ({ error } = await sb.from(ITEMS_TABLE).insert(payload));
   }
 
   if (error) {
@@ -719,7 +1178,7 @@ form.addEventListener('submit', async (e) => {
 
 async function deleteItem(id) {
   if (!confirm('Delete this itinerary item? This cannot be undone.')) return;
-  const { error } = await sb.from(TABLE).delete().eq('id', id);
+  const { error } = await sb.from(ITEMS_TABLE).delete().eq('id', id);
   if (error) {
     toast('Delete failed: ' + error.message, true);
     return;
@@ -731,7 +1190,131 @@ async function deleteItem(id) {
 $('search').addEventListener('input', render);
 $('filterCategory').addEventListener('change', render);
 
-loadItems();
+// =================================================================
+// Google Places autocomplete (place search, address, hours, photo)
+// =================================================================
+let placeAutocomplete = null;
+
+function onPlaceChanged() {
+  const place = placeAutocomplete.getPlace();
+  if (!place || !place.geometry) return; // user pressed enter without picking a suggestion
+  if (place.name) $('f-place-name').value = place.name;
+  if (place.formatted_address) $('f-address').value = place.formatted_address;
+  if (place.url) $('f-place-link').value = place.url;
+  else if (place.website) $('f-place-link').value = place.website;
+  if (place.opening_hours && place.opening_hours.weekday_text) {
+    $('f-opening-hours').value = place.opening_hours.weekday_text.join('\n');
+  }
+  if (place.photos && place.photos.length) {
+    setPhotoPreview(place.photos[0].getUrl({ maxWidth: 400, maxHeight: 400 }));
+  } else {
+    setPhotoPreview('');
+  }
+}
+
+window.initGoogleMaps = function () {
+  placeAutocomplete = new google.maps.places.Autocomplete($('f-place-name'), {
+    fields: ['name', 'formatted_address', 'geometry', 'opening_hours', 'url', 'website', 'photos']
+  });
+  placeAutocomplete.addListener('place_changed', onPlaceChanged);
+  $('placeSearchHint').style.display = 'none';
+};
+
+function loadGoogleMapsScript(key) {
+  if (document.getElementById('gmapsScript')) return;
+  const script = document.createElement('script');
+  script.id = 'gmapsScript';
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async&callback=initGoogleMaps`;
+  script.async = true;
+  script.onerror = () => toast('Failed to load Google Maps — check your API key in Settings', true);
+  document.head.appendChild(script);
+}
+
+const storedGMapsKey = localStorage.getItem(GMAPS_KEY_STORAGE) || DEFAULT_GMAPS_KEY;
+if (storedGMapsKey) loadGoogleMapsScript(storedGMapsKey);
+else $('placeSearchHint').style.display = 'block';
+
+// =================================================================
+// Flight lookup (AviationStack)
+// =================================================================
+$('btnLookupFlight').addEventListener('click', async () => {
+  const key = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE);
+  const flightNo = $('f-flight-number').value.trim();
+  if (!key) { toast('Add an AviationStack API key in Settings (⚙) first', true); return; }
+  if (!flightNo) { toast('Enter a flight number first', true); return; }
+
+  const hintEl = $('flightLookupHint');
+  const originalHint = hintEl.textContent;
+  hintEl.textContent = 'Looking up…';
+  try {
+    const url = `https://api.aviationstack.com/v1/flights?access_key=${encodeURIComponent(key)}&flight_iata=${encodeURIComponent(flightNo)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message || 'API error');
+    const flight = json.data && json.data[0];
+    if (!flight) {
+      hintEl.textContent = 'No flight found for that number.';
+      return;
+    }
+    applyFlightDetails(flight);
+    const flightLabel = (flight.airline && flight.airline.name || '') + ' ' + (flight.flight && flight.flight.iata || flightNo);
+    hintEl.textContent = `Loaded ${flightLabel.trim()} · status: ${flight.flight_status || 'unknown'}`;
+    toast('Flight details loaded');
+  } catch (e) {
+    console.error(e);
+    hintEl.textContent = originalHint;
+    toast('Flight lookup failed: ' + e.message, true);
+  }
+});
+
+function applyFlightDetails(flight) {
+  const dep = flight.departure || {};
+  const arr = flight.arrival || {};
+  const depTime = (dep.scheduled || '').slice(11, 16);
+  const arrTime = (arr.scheduled || '').slice(11, 16);
+  if (depTime) $('f-start').value = depTime;
+  if (arrTime) $('f-end').value = arrTime;
+
+  const airlineName = (flight.airline && flight.airline.name) || '';
+  const flightIata = (flight.flight && flight.flight.iata) || $('f-flight-number').value.trim();
+  if (!$('f-title').value.trim()) {
+    $('f-title').value = `${airlineName} ${flightIata}`.trim();
+  }
+
+  $('f-place-name').value = `${dep.airport || '?'} (${dep.iata || ''}) → ${arr.airport || '?'} (${arr.iata || ''})`;
+  $('f-place-link').value = `https://flightaware.com/live/flight/${flightIata}`;
+
+  const depBits = [dep.terminal ? `Terminal ${dep.terminal}` : '', dep.gate ? `Gate ${dep.gate}` : ''].filter(Boolean).join(', ');
+  const arrBits = [arr.terminal ? `Terminal ${arr.terminal}` : '', arr.gate ? `Gate ${arr.gate}` : ''].filter(Boolean).join(', ');
+  $('f-address').value = [
+    depBits ? `Departure: ${depBits}` : '',
+    arrBits ? `Arrival: ${arrBits}` : ''
+  ].filter(Boolean).join(' · ');
+}
+
+// =================================================================
+// Settings modal
+// =================================================================
+const settingsOverlay = $('settingsOverlay');
+function openSettings() {
+  $('gmapsKeyInput').value = localStorage.getItem(GMAPS_KEY_STORAGE) || DEFAULT_GMAPS_KEY;
+  $('aviationKeyInput').value = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE) || '';
+  settingsOverlay.classList.add('open');
+}
+$('btnSettings').addEventListener('click', openSettings);
+$('btnSettings2').addEventListener('click', openSettings);
+$('btnSettingsCancel').addEventListener('click', () => settingsOverlay.classList.remove('open'));
+settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); });
+$('btnSettingsSave').addEventListener('click', () => {
+  const gkey = $('gmapsKeyInput').value.trim();
+  const akey = $('aviationKeyInput').value.trim();
+  if (gkey) localStorage.setItem(GMAPS_KEY_STORAGE, gkey); else localStorage.removeItem(GMAPS_KEY_STORAGE);
+  if (akey) localStorage.setItem(AVIATIONSTACK_KEY_STORAGE, akey); else localStorage.removeItem(AVIATIONSTACK_KEY_STORAGE);
+  location.reload();
+});
+
+// =================================================================
+routeFromHash();
 </script>
 </body>
 </html>
