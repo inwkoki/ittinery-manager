@@ -1237,9 +1237,20 @@ else $('placeSearchHint').style.display = 'block';
 // =================================================================
 // Flight lookup (AviationStack)
 // =================================================================
+async function fetchFlight(key, flightNo, flightDate) {
+  const dateParam = flightDate ? `&flight_date=${encodeURIComponent(flightDate)}` : '';
+  const url = `https://api.aviationstack.com/v1/flights?access_key=${encodeURIComponent(key)}&flight_iata=${encodeURIComponent(flightNo)}${dateParam}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || 'API error');
+  return json.data && json.data[0];
+}
+
 $('btnLookupFlight').addEventListener('click', async () => {
   const key = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE);
-  const flightNo = $('f-flight-number').value.trim();
+  // IATA flight designators are uppercase (e.g. ZG052) — normalize what the user typed.
+  const flightNo = $('f-flight-number').value.trim().toUpperCase();
+  $('f-flight-number').value = flightNo;
   if (!key) { toast('Add an AviationStack API key in Settings (⚙) first', true); return; }
   if (!flightNo) { toast('Enter a flight number first', true); return; }
 
@@ -1247,18 +1258,23 @@ $('btnLookupFlight').addEventListener('click', async () => {
   const originalHint = hintEl.textContent;
   hintEl.textContent = 'Looking up…';
   try {
-    const url = `https://api.aviationstack.com/v1/flights?access_key=${encodeURIComponent(key)}&flight_iata=${encodeURIComponent(flightNo)}`;
-    const res = await fetch(url);
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message || 'API error');
-    const flight = json.data && json.data[0];
+    const requestedDate = $('f-date').value;
+    let flight = await fetchFlight(key, flightNo, requestedDate);
+    let matchedRequestedDate = !!flight;
+    if (!flight && requestedDate) {
+      // That exact date may not be populated on the free tier — fall back to
+      // whatever AviationStack currently has for this flight number.
+      flight = await fetchFlight(key, flightNo, null);
+      matchedRequestedDate = false;
+    }
     if (!flight) {
-      hintEl.textContent = 'No flight found for that number.';
+      hintEl.textContent = `No flight found for ${flightNo}. Double-check the code — some airlines/routes aren't in AviationStack's free-tier data.`;
       return;
     }
     applyFlightDetails(flight);
-    const flightLabel = (flight.airline && flight.airline.name || '') + ' ' + (flight.flight && flight.flight.iata || flightNo);
-    hintEl.textContent = `Loaded ${flightLabel.trim()} · status: ${flight.flight_status || 'unknown'}`;
+    const flightLabel = ((flight.airline && flight.airline.name) || '') + ' ' + ((flight.flight && flight.flight.iata) || flightNo);
+    hintEl.textContent = `Loaded ${flightLabel.trim()} · status: ${flight.flight_status || 'unknown'}`
+      + (matchedRequestedDate ? '' : ` (showing latest known schedule, not necessarily ${requestedDate})`);
     toast('Flight details loaded');
   } catch (e) {
     console.error(e);
