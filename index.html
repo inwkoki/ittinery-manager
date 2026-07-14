@@ -1297,11 +1297,21 @@ $('btnLookupFlight').addEventListener('click', async () => {
   hintEl.textContent = 'Looking up…';
   try {
     const requestedDate = $('f-date').value;
-    let flight = await fetchFlight(key, flightNo, requestedDate);
-    let matchedRequestedDate = !!flight;
-    if (!flight && requestedDate) {
-      // That exact date may not be populated on the free tier — fall back to
-      // whatever AviationStack currently has for this flight number.
+    let flight;
+    let matchedRequestedDate = false;
+
+    if (requestedDate) {
+      try {
+        flight = await fetchFlight(key, flightNo, requestedDate);
+        matchedRequestedDate = !!flight;
+      } catch (dateErr) {
+        // The free plan rejects the flight_date filter entirely ("subscription
+        // plan does not support this API function") — fall back silently
+        // instead of surfacing that as a failure.
+        console.warn('Date-filtered flight lookup unavailable, retrying without it:', dateErr.message);
+      }
+    }
+    if (!flight) {
       flight = await fetchFlight(key, flightNo, null);
       matchedRequestedDate = false;
     }
