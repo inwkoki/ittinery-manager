@@ -26,6 +26,7 @@ create table if not exists public.itinerary_items (
   opening_hours_periods text,
   photo_url text,
   flight_number text,
+  checkout_date date,
   reservation_name text,
   confirmation_code text,
   price numeric,
@@ -44,6 +45,7 @@ alter table public.itinerary_items add column if not exists opening_hours text;
 alter table public.itinerary_items add column if not exists opening_hours_periods text;
 alter table public.itinerary_items add column if not exists photo_url text;
 alter table public.itinerary_items add column if not exists flight_number text;
+alter table public.itinerary_items add column if not exists checkout_date date;
 alter table public.itinerary_items add column if not exists sort_order bigint default 0;
 
 -- Link items to trips (cascade delete so removing a trip clears its items).

@@ -149,6 +149,17 @@
   .trip-card-actions .icon-btn { padding: 5px 8px; font-size: 12px; }
 
   .day-group { margin-bottom: 26px; }
+  .staying-banner {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--surface);
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+  }
   .day-heading {
     position: sticky;
     top: 0;
@@ -468,6 +479,15 @@
             Fills in airports, scheduled times, terminal &amp; gate. Free-tier data is the
             latest known schedule for this flight number (not date-specific) — confirm
             exact times closer to departure. For connections, add each leg as its own item.
+          </div>
+        </div>
+
+        <div class="full" id="lodgingRow" style="display:none;">
+          <label>Check-out date</label>
+          <input type="date" id="f-checkout-date" />
+          <div class="hint" style="margin-top:4px;">
+            For multi-night stays — every day between check-in and check-out will show a
+            "🏨 Staying at" banner, even on days with nothing else planned.
           </div>
         </div>
 
@@ -882,6 +902,11 @@ function formatDateHeading(dateStr) {
   return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+function formatShortDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function formatTime(t) {
   if (!t) return '';
   return t.slice(0, 5); // 24-hour HH:MM, straight from the <input type="time"> value
@@ -933,10 +958,36 @@ function matchesFilters(item) {
   return hay.includes(q);
 }
 
+// A lodging stay covers every night from item_date up to (but not including)
+// checkout_date. Plain ISO date strings compare correctly with <=/< since
+// they're zero-padded YYYY-MM-DD.
+function getStayingHotelForDate(date) {
+  const stay = items.find((item) => item.category === 'lodging' && item.checkout_date
+    && item.item_date <= date && date < item.checkout_date);
+  return stay ? (stay.place_name || stay.title) : '';
+}
+
 function render() {
   const filtered = items.filter(matchesFilters);
+  const noActiveFilter = !$('search').value.trim() && !$('filterCategory').value;
 
-  if (filtered.length === 0) {
+  const dateSet = new Set(filtered.map((i) => i.item_date));
+  if (noActiveFilter) {
+    // Make sure every night of a multi-night stay gets its own day-group so the
+    // "staying at" banner shows up even on days with nothing else planned.
+    for (const item of items) {
+      if (item.category === 'lodging' && item.checkout_date) {
+        let d = new Date(item.item_date + 'T00:00:00');
+        const end = new Date(item.checkout_date + 'T00:00:00');
+        while (d < end) {
+          dateSet.add(d.toISOString().slice(0, 10));
+          d.setDate(d.getDate() + 1);
+        }
+      }
+    }
+  }
+
+  if (dateSet.size === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
         <div class="big">🗺️</div>
@@ -946,16 +997,17 @@ function render() {
   }
 
   const groups = {};
-  for (const item of filtered) {
-    (groups[item.item_date] ||= []).push(item);
-  }
+  for (const date of dateSet) groups[date] = [];
+  for (const item of filtered) groups[item.item_date].push(item);
 
   listEl.innerHTML = '';
-  for (const date of Object.keys(groups).sort()) {
+  for (const date of [...dateSet].sort()) {
     const section = document.createElement('div');
     section.className = 'day-group';
     section.dataset.date = date;
-    section.innerHTML = `<div class="day-heading">${formatDateHeading(date)}</div>`;
+    const stayingAt = getStayingHotelForDate(date);
+    section.innerHTML = `<div class="day-heading">${formatDateHeading(date)}</div>`
+      + (stayingAt ? `<div class="staying-banner">🏨 Staying at ${escapeHtml(stayingAt)}</div>` : '');
     for (const item of groups[date]) {
       section.appendChild(renderCard(item));
     }
@@ -987,6 +1039,9 @@ function renderCard(item) {
   const addressLine = item.address ? `<div class="row-line">🏠 ${escapeHtml(item.address)}</div>` : '';
   const todaysHours = getOpeningHoursForDate(item);
   const hoursLine = todaysHours ? `<div class="row-line">🕒 ${escapeHtml(todaysHours)}</div>` : '';
+  const checkoutLine = item.checkout_date
+    ? `<div class="row-line">🚪 Check-out ${formatShortDate(item.checkout_date)}</div>`
+    : '';
 
   let reservationLine = '';
   if (item.reservation_name || item.confirmation_code) {
@@ -1007,6 +1062,7 @@ function renderCard(item) {
       ${placeLine}
       ${addressLine}
       ${hoursLine}
+      ${checkoutLine}
       ${reservationLine}
       ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
     </div>
@@ -1104,7 +1160,9 @@ const overlay = $('formOverlay');
 const form = $('itemForm');
 
 function toggleFlightRow() {
-  $('flightLookupRow').style.display = $('f-category').value === 'flight' ? 'block' : 'none';
+  const category = $('f-category').value;
+  $('flightLookupRow').style.display = category === 'flight' ? 'block' : 'none';
+  $('lodgingRow').style.display = category === 'lodging' ? 'block' : 'none';
 }
 $('f-category').addEventListener('change', toggleFlightRow);
 
@@ -1139,6 +1197,7 @@ function openForm(item) {
     $('f-opening-hours').value = item.opening_hours || '';
     $('f-opening-hours-periods').value = item.opening_hours_periods || '';
     $('f-flight-number').value = item.flight_number || '';
+    $('f-checkout-date').value = item.checkout_date || '';
     $('f-reservation-name').value = item.reservation_name || '';
     $('f-confirmation').value = item.confirmation_code || '';
     $('f-price').value = item.price ?? '';
@@ -1183,6 +1242,7 @@ form.addEventListener('submit', async (e) => {
     opening_hours_periods: $('f-opening-hours-periods').value.trim() || null,
     photo_url: $('f-photo-url').value.trim() || null,
     flight_number: $('f-flight-number').value.trim() || null,
+    checkout_date: $('f-checkout-date').value || null,
     reservation_name: $('f-reservation-name').value.trim() || null,
     confirmation_code: $('f-confirmation').value.trim() || null,
     price: $('f-price').value === '' ? null : Number($('f-price').value),
