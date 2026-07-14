@@ -505,6 +505,7 @@
         <div class="full">
           <label>Opening hours</label>
           <textarea id="f-opening-hours" placeholder="Auto-filled when available, one line per day"></textarea>
+          <input type="hidden" id="f-opening-hours-periods" />
         </div>
         <div>
           <label>Reservation name</label>
@@ -628,6 +629,7 @@ const AVIATIONSTACK_KEY_STORAGE = 'itinerary_aviationstack_api_key';
 // Restrict it in Google Cloud Console to Places API + Maps JavaScript API
 // with a daily quota cap, since this repo is public.
 const DEFAULT_GMAPS_KEY = 'AIzaSyBI-yd6YBUDhcLchIN9SKpwRY8rBtR5OKk';
+const DEFAULT_AVIATIONSTACK_KEY = '35009d83109dfbedd312c5292edd5632';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -893,6 +895,34 @@ function formatPrice(price, currency) {
   return sym ? `${sym}${num}` : `${num} ${currency || ''}`.trim();
 }
 
+// Opening hours are stored as Google's structured "periods" (numeric day-of-week
+// 0-6 + 24h HHMM times) rather than locale-formatted text, so matching against
+// this item's actual date works regardless of the browser's language — a plain
+// weekday-name string match would silently break in a non-English locale.
+// On the card we only want the single day this item falls on, not all 7 days.
+function getOpeningHoursForDate(item) {
+  if (!item.opening_hours_periods || !item.item_date) return '';
+  let periods;
+  try {
+    periods = JSON.parse(item.opening_hours_periods);
+  } catch (e) {
+    return '';
+  }
+  if (!Array.isArray(periods) || periods.length === 0) return '';
+
+  // Google's sentinel for "always open": a single period with no close time.
+  if (periods.length === 1 && periods[0].open && !periods[0].close) {
+    return 'Open 24 hours';
+  }
+
+  const dayIndex = new Date(item.item_date + 'T00:00:00').getDay(); // 0=Sun..6=Sat
+  const todays = periods.filter((p) => p.open && p.open.day === dayIndex);
+  if (todays.length === 0) return 'Closed';
+
+  const fmt = (t) => (t ? `${t.slice(0, 2)}:${t.slice(2, 4)}` : '');
+  return todays.map((p) => `${fmt(p.open.time)} – ${p.close ? fmt(p.close.time) : '24:00'}`).join(', ');
+}
+
 function matchesFilters(item) {
   const q = $('search').value.trim().toLowerCase();
   const cat = $('filterCategory').value;
@@ -955,7 +985,8 @@ function renderCard(item) {
   }
 
   const addressLine = item.address ? `<div class="row-line">🏠 ${escapeHtml(item.address)}</div>` : '';
-  const hoursLine = item.opening_hours ? `<div class="notes">🕒 ${escapeHtml(item.opening_hours)}</div>` : '';
+  const todaysHours = getOpeningHoursForDate(item);
+  const hoursLine = todaysHours ? `<div class="row-line">🕒 ${escapeHtml(todaysHours)}</div>` : '';
 
   let reservationLine = '';
   if (item.reservation_name || item.confirmation_code) {
@@ -1106,6 +1137,7 @@ function openForm(item) {
     $('f-place-link').value = item.place_link || '';
     $('f-address').value = item.address || '';
     $('f-opening-hours').value = item.opening_hours || '';
+    $('f-opening-hours-periods').value = item.opening_hours_periods || '';
     $('f-flight-number').value = item.flight_number || '';
     $('f-reservation-name').value = item.reservation_name || '';
     $('f-confirmation').value = item.confirmation_code || '';
@@ -1148,6 +1180,7 @@ form.addEventListener('submit', async (e) => {
     place_link: $('f-place-link').value.trim() || null,
     address: $('f-address').value.trim() || null,
     opening_hours: $('f-opening-hours').value.trim() || null,
+    opening_hours_periods: $('f-opening-hours-periods').value.trim() || null,
     photo_url: $('f-photo-url').value.trim() || null,
     flight_number: $('f-flight-number').value.trim() || null,
     reservation_name: $('f-reservation-name').value.trim() || null,
@@ -1204,7 +1237,12 @@ function onPlaceChanged() {
   else if (place.website) $('f-place-link').value = place.website;
   if (place.opening_hours && place.opening_hours.weekday_text) {
     $('f-opening-hours').value = place.opening_hours.weekday_text.join('\n');
+  } else {
+    $('f-opening-hours').value = '';
   }
+  $('f-opening-hours-periods').value = (place.opening_hours && place.opening_hours.periods)
+    ? JSON.stringify(place.opening_hours.periods)
+    : '';
   if (place.photos && place.photos.length) {
     setPhotoPreview(place.photos[0].getUrl({ maxWidth: 400, maxHeight: 400 }));
   } else {
@@ -1247,7 +1285,7 @@ async function fetchFlight(key, flightNo, flightDate) {
 }
 
 $('btnLookupFlight').addEventListener('click', async () => {
-  const key = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE);
+  const key = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE) || DEFAULT_AVIATIONSTACK_KEY;
   // IATA flight designators are uppercase (e.g. ZG052) — normalize what the user typed.
   const flightNo = $('f-flight-number').value.trim().toUpperCase();
   $('f-flight-number').value = flightNo;
@@ -1314,7 +1352,7 @@ function applyFlightDetails(flight) {
 const settingsOverlay = $('settingsOverlay');
 function openSettings() {
   $('gmapsKeyInput').value = localStorage.getItem(GMAPS_KEY_STORAGE) || DEFAULT_GMAPS_KEY;
-  $('aviationKeyInput').value = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE) || '';
+  $('aviationKeyInput').value = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE) || DEFAULT_AVIATIONSTACK_KEY;
   settingsOverlay.classList.add('open');
 }
 $('btnSettings').addEventListener('click', openSettings);

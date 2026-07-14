@@ -23,6 +23,7 @@ create table if not exists public.itinerary_items (
   place_link text,
   address text,
   opening_hours text,
+  opening_hours_periods text,
   photo_url text,
   flight_number text,
   reservation_name text,
@@ -40,6 +41,7 @@ create table if not exists public.itinerary_items (
 alter table public.itinerary_items add column if not exists trip_id uuid;
 alter table public.itinerary_items add column if not exists address text;
 alter table public.itinerary_items add column if not exists opening_hours text;
+alter table public.itinerary_items add column if not exists opening_hours_periods text;
 alter table public.itinerary_items add column if not exists photo_url text;
 alter table public.itinerary_items add column if not exists flight_number text;
 alter table public.itinerary_items add column if not exists sort_order bigint default 0;
