@@ -6,6 +6,7 @@
 <title>Itinerary Manager</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root {
     --bg: #f4f5f7;
@@ -431,6 +432,30 @@
     border: none; background: var(--danger); color: #fff;
     font-size: 12px; line-height: 1; cursor: pointer;
   }
+
+  /* Forces the light theme regardless of the OS dark-mode setting, so
+     exported/printed documents stay readable (e.g. for immigration checks). */
+  body.exporting-jpg {
+    --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f1f4; --border: #e2e4e9;
+    --text: #1c1e21; --text-dim: #6b7280; --accent: #4f46e5; --accent-2: #7c3aed;
+    --danger: #dc2626; --success: #16a34a;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    background: var(--bg);
+  }
+
+  @media print {
+    :root {
+      --bg: #ffffff; --surface: #ffffff; --surface-2: #f4f5f7; --border: #cccccc;
+      --text: #000000; --text-dim: #444444; --accent: #4f46e5; --accent-2: #7c3aed;
+      --danger: #b42318; --success: #166534; --shadow: none;
+    }
+    body { background: #fff; }
+    .no-print, .overlay, .toast { display: none !important; }
+    header { background: #fff !important; padding: 0 0 12px; }
+    header .header-inner input#tripTitle { color: #000 !important; font-size: 26px; }
+    .day-heading { position: static; }
+    .card { box-shadow: none; break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -457,11 +482,12 @@
   <header>
     <div class="header-inner">
       <div class="header-left">
-        <button class="btn btn-ghost" id="btnBackToTrips">← Trips</button>
+        <button class="btn btn-ghost no-print" id="btnBackToTrips">← Trips</button>
         <input id="tripTitle" placeholder="Trip name" />
       </div>
-      <div style="display:flex; align-items:center; gap:12px;">
+      <div style="display:flex; align-items:center; gap:12px;" class="no-print">
         <span id="status">connecting…</span>
+        <button class="btn btn-ghost" id="btnExport">⬇ Export</button>
         <button class="btn btn-ghost" id="btnSettings2">⚙</button>
         <button class="btn btn-primary" id="btnNew">+ New Item</button>
       </div>
@@ -474,9 +500,9 @@
       project's SQL Editor, then reload this page.
     </div>
 
-    <div id="remindersSection"></div>
+    <div id="remindersSection" class="no-print"></div>
 
-    <div class="toolbar">
+    <div class="toolbar no-print">
       <input type="text" id="search" placeholder="Search title, place, notes…" />
       <select id="filterCategory">
         <option value="">All categories</option>
@@ -493,7 +519,7 @@
 
     <div id="list"></div>
   </main>
-  <button class="fab" id="btnNewFab" title="New Item">+</button>
+  <button class="fab no-print" id="btnNewFab" title="New Item">+</button>
 </div>
 
 <!-- ================= ITEM FORM MODAL ================= -->
@@ -685,6 +711,35 @@
       <div class="right">
         <button type="button" class="btn btn-secondary" id="confirmCancelBtn">Cancel</button>
         <button type="button" class="btn" id="confirmOkBtn" style="background:var(--danger); color:#fff;">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= EXPORT MODAL ================= -->
+<div class="overlay" id="exportOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h2>Export This Trip</h2>
+    <div class="hint" style="margin-bottom:14px;">
+      Choose a format. PDF and JPG give a clean printable copy (handy for
+      immigration/border checks); the text option is meant to be pasted into
+      an AI chat to review what still needs booking or might be closed.
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button type="button" class="btn btn-secondary" id="btnExportPdf" style="text-align:left;">
+        🖨️ Export as PDF (print / save as PDF)
+      </button>
+      <button type="button" class="btn btn-secondary" id="btnExportJpg" style="text-align:left;">
+        🖼️ Export as JPG image
+      </button>
+      <button type="button" class="btn btn-secondary" id="btnExportText" style="text-align:left;">
+        📋 Copy as text (for AI review — bookings &amp; opening hours)
+      </button>
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn btn-secondary" id="btnExportCancel">Close</button>
       </div>
     </div>
   </div>
@@ -1292,7 +1347,7 @@ function renderCard(item) {
   }
 
   card.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder">⠿</span>
+    <span class="drag-handle no-print" title="Drag to reorder">⠿</span>
     ${item.photo_url ? `<img class="photo-thumb" src="${escapeAttr(item.photo_url)}" alt="" />` : ''}
     <div class="main-col">
       <div class="card-top">
@@ -1311,7 +1366,7 @@ function renderCard(item) {
       ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
     </div>
     ${item.ticket_data ? `<img class="qr-thumb" data-ticket="${encodeURIComponent(item.ticket_data)}" alt="Ticket QR" />` : ''}
-    <div class="card-actions">
+    <div class="card-actions no-print">
       <button class="icon-btn" data-edit="${item.id}">Edit</button>
       <button class="icon-btn" data-cal="${item.id}" title="Add to Google Calendar">📅</button>
       <button class="icon-btn danger" data-del="${item.id}">Delete</button>
@@ -1679,6 +1734,103 @@ function applyFlightDetails(flight) {
     arrBits ? `Arrival: ${arrBits}` : ''
   ].filter(Boolean).join(' · ');
 }
+
+// =================================================================
+// Export (PDF / JPG / text for AI review)
+// =================================================================
+const exportOverlay = $('exportOverlay');
+$('btnExport').addEventListener('click', () => exportOverlay.classList.add('open'));
+$('btnExportCancel').addEventListener('click', () => exportOverlay.classList.remove('open'));
+exportOverlay.addEventListener('click', (e) => { if (e.target === exportOverlay) exportOverlay.classList.remove('open'); });
+
+function exportFileBaseName() {
+  return (tripTitleEl.value || 'itinerary').trim().replace(/[^a-z0-9]+/gi, '_').toLowerCase() || 'itinerary';
+}
+
+$('btnExportPdf').addEventListener('click', () => {
+  exportOverlay.classList.remove('open');
+  // The @media print stylesheet hides UI chrome and forces a light theme;
+  // the browser's own "Save as PDF" print destination produces the PDF.
+  setTimeout(() => window.print(), 100);
+});
+
+$('btnExportJpg').addEventListener('click', async () => {
+  exportOverlay.classList.remove('open');
+  toast('Rendering image…');
+  document.body.classList.add('exporting-jpg');
+  try {
+    const canvas = await html2canvas(listEl, { backgroundColor: '#f4f5f7', scale: 2 });
+    const link = document.createElement('a');
+    link.download = `${exportFileBaseName()}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+    toast('Exported as JPG');
+  } catch (e) {
+    console.error(e);
+    toast('JPG export failed: ' + e.message, true);
+  } finally {
+    document.body.classList.remove('exporting-jpg');
+  }
+});
+
+function buildItineraryText() {
+  const lines = [];
+  lines.push(`Itinerary: ${tripTitleEl.value || 'Untitled trip'}`);
+  lines.push(`Exported: ${new Date().toLocaleString()}`);
+  lines.push('');
+  lines.push('Please review this itinerary and tell me:');
+  lines.push('1. Which items still need a reservation/booking that I have not made yet.');
+  lines.push('2. Whether any planned place might be closed on the day I scheduled it, based on the opening hours listed.');
+  lines.push('='.repeat(60));
+
+  const groups = {};
+  for (const item of items) (groups[item.item_date] ||= []).push(item);
+
+  for (const date of Object.keys(groups).sort()) {
+    lines.push('');
+    lines.push(`# ${formatDateHeading(date)}`);
+    for (const item of groups[date]) {
+      const timeRange = [formatTime(item.start_time), formatTime(item.end_time)].filter(Boolean).join('-') || 'All day';
+      lines.push(`- [${item.category || 'other'}] ${timeRange} ${item.title}`);
+      if (item.place_name) lines.push(`    Place: ${item.place_name}`);
+      if (item.address) lines.push(`    Address: ${item.address}`);
+      const todaysHours = getOpeningHoursForDate(item);
+      if (todaysHours) lines.push(`    Opening hours that day: ${todaysHours}`);
+      if (item.checkout_date) lines.push(`    Check-out date: ${item.checkout_date}`);
+      if (item.flight_number) lines.push(`    Flight number: ${item.flight_number}`);
+      if (item.reservation_name || item.confirmation_code) {
+        lines.push(`    Reservation: ${[item.reservation_name, item.confirmation_code ? `Conf# ${item.confirmation_code}` : ''].filter(Boolean).join(' — ')}`);
+      }
+      if (item.price) lines.push(`    Price: ${formatPrice(item.price, item.currency)}`);
+      lines.push(`    Needs booking: ${item.needs_booking ? (item.is_booked ? 'yes (already booked)' : 'yes — NOT booked yet') : 'no'}`);
+      if (item.notes) lines.push(`    Notes: ${item.notes}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+$('btnExportText').addEventListener('click', async () => {
+  exportOverlay.classList.remove('open');
+  const text = buildItineraryText();
+
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    copied = true;
+  } catch (e) {
+    console.warn('Clipboard write failed, falling back to download only:', e);
+  }
+
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `${exportFileBaseName()}.txt`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  toast(copied ? 'Copied to clipboard — paste into Claude to review' : 'Clipboard unavailable — downloaded .txt instead');
+});
 
 // =================================================================
 // Settings modal
