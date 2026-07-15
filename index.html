@@ -821,6 +821,22 @@
       flight number rather than a specific future date — treat it as a quick reference.
     </div>
 
+    <label style="margin-top:18px;">Claude (Anthropic) API key <span class="hint">(optional, for AI import)</span></label>
+    <input type="password" id="anthropicKeyInput" placeholder="sk-ant-…" autocomplete="off" />
+    <div class="hint" style="margin-top:8px;">
+      Powers <b>📥 Import → ✨ Use Claude AI</b>: reads a screenshot, photo or PDF of a booking
+      and fills the form automatically. Get a key at
+      <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
+      Stored only in this browser (calls go directly to Anthropic from your device — the key is
+      never committed to this repo). Usage is billed to your Anthropic account.
+    </div>
+    <label style="margin-top:14px;">AI model</label>
+    <select id="anthropicModelInput">
+      <option value="claude-opus-4-8">Claude Opus 4.8 (most accurate)</option>
+      <option value="claude-sonnet-5">Claude Sonnet 5 (balanced)</option>
+      <option value="claude-haiku-4-5">Claude Haiku 4.5 (cheapest/fastest)</option>
+    </select>
+
     <div class="modal-actions">
       <div></div>
       <div class="right">
@@ -915,9 +931,15 @@
       what it can (dates, times, place, confirmation code, flight number, price) and
       pre-fills a new item for you to review before saving. Best-effort — always check it.
     </div>
+    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:8px;" id="aiToggleWrap">
+      <input type="checkbox" id="importUseAi" style="width:auto;" /> ✨ <span data-i18n="useAi">Use Claude AI (reads screenshots, photos &amp; PDFs — more accurate)</span>
+    </label>
+    <div class="hint" id="aiKeyHint" style="display:none; margin-bottom:8px;">
+      🔑 Add a Claude API key in Settings (⚙) to enable AI import.
+    </div>
     <textarea id="importText" style="min-height:120px;" placeholder="Paste confirmation email text here…"></textarea>
     <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
-      <input type="file" id="importFile" accept=".pdf,.txt,.eml,text/plain" style="flex:1; padding:6px;" />
+      <input type="file" id="importFile" accept=".pdf,.txt,.eml,.png,.jpg,.jpeg,.webp,image/*,text/plain" style="flex:1; padding:6px;" />
       <button type="button" class="btn btn-save" id="btnImportParse" data-i18n="parse">Parse</button>
     </div>
     <div class="hint" id="importStatus" style="margin-top:8px;"></div>
@@ -941,6 +963,8 @@ const ITEMS_TABLE = 'itinerary_items';
 const TRIPS_TABLE = 'trips';
 const GMAPS_KEY_STORAGE = 'itinerary_gmaps_api_key';
 const AVIATIONSTACK_KEY_STORAGE = 'itinerary_aviationstack_api_key';
+const ANTHROPIC_KEY_STORAGE = 'itinerary_anthropic_api_key';
+const ANTHROPIC_MODEL_STORAGE = 'itinerary_anthropic_model';
 // Client-side key by design (Google Places is meant to run in the browser).
 // Restrict it in Google Cloud Console to Places API + Maps JavaScript API
 // with a daily quota cap, since this repo is public.
@@ -2002,6 +2026,8 @@ const settingsOverlay = $('settingsOverlay');
 function openSettings() {
   $('gmapsKeyInput').value = localStorage.getItem(GMAPS_KEY_STORAGE) || DEFAULT_GMAPS_KEY;
   $('aviationKeyInput').value = localStorage.getItem(AVIATIONSTACK_KEY_STORAGE) || DEFAULT_AVIATIONSTACK_KEY;
+  $('anthropicKeyInput').value = localStorage.getItem(ANTHROPIC_KEY_STORAGE) || '';
+  $('anthropicModelInput').value = localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-opus-4-8';
   settingsOverlay.classList.add('open');
 }
 $('btnSettings').addEventListener('click', openSettings);
@@ -2013,6 +2039,9 @@ $('btnSettingsSave').addEventListener('click', () => {
   const akey = $('aviationKeyInput').value.trim();
   if (gkey) localStorage.setItem(GMAPS_KEY_STORAGE, gkey); else localStorage.removeItem(GMAPS_KEY_STORAGE);
   if (akey) localStorage.setItem(AVIATIONSTACK_KEY_STORAGE, akey); else localStorage.removeItem(AVIATIONSTACK_KEY_STORAGE);
+  const antKey = $('anthropicKeyInput').value.trim();
+  if (antKey) localStorage.setItem(ANTHROPIC_KEY_STORAGE, antKey); else localStorage.removeItem(ANTHROPIC_KEY_STORAGE);
+  localStorage.setItem(ANTHROPIC_MODEL_STORAGE, $('anthropicModelInput').value);
   location.reload();
 });
 
@@ -2046,7 +2075,8 @@ const I18N = {
     back: '← Trips', searchPh: 'Search title, place, notes…', tripNamePh: 'Trip name',
     import: 'Import a booking', importTitle: '📥 Import a booking',
     importHint: 'Paste a confirmation email, or upload a PDF / .txt / .eml file. The app extracts what it can (dates, times, place, confirmation code, flight number, price) and pre-fills a new item for you to review before saving. Best-effort — always check it.',
-    parse: 'Parse', useFill: 'Fill form →'
+    parse: 'Parse', useFill: 'Fill form →',
+    useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2058,7 +2088,8 @@ const I18N = {
     back: '← ทริป', searchPh: 'ค้นหาชื่อ สถานที่ โน้ต…', tripNamePh: 'ชื่อทริป',
     import: 'นำเข้าการจอง', importTitle: '📥 นำเข้าการจอง',
     importHint: 'วางข้อความอีเมลยืนยัน หรืออัปโหลดไฟล์ PDF / .txt / .eml แล้วแอปจะสกัดข้อมูลเท่าที่ทำได้ (วันที่ เวลา สถานที่ เลขยืนยัน เลขเที่ยวบิน ราคา) มาเติมในฟอร์มรายการใหม่ให้คุณตรวจก่อนบันทึก — เป็นการเดา ควรตรวจสอบทุกครั้ง',
-    parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →'
+    parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →',
+    useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -2633,10 +2664,17 @@ persistDayOrder = async function (dayGroupEl) {
 // Import a booking (paste email / upload PDF·txt·eml -> prefill form)
 // =================================================================
 const importOverlay = $('importOverlay');
+function anthropicKey() { return (localStorage.getItem(ANTHROPIC_KEY_STORAGE) || '').trim(); }
+function anthropicModel() { return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-opus-4-8'; }
+
 $('btnImport').addEventListener('click', () => {
   $('importStatus').textContent = '';
   $('importPreview').innerHTML = '';
   $('btnImportUse').style.display = 'none';
+  const hasKey = !!anthropicKey();
+  $('importUseAi').checked = hasKey;            // default on when a key is set
+  $('importUseAi').disabled = !hasKey;
+  $('aiKeyHint').style.display = hasKey ? 'none' : 'block';
   importOverlay.classList.add('open');
 });
 $('btnImportClose').addEventListener('click', () => importOverlay.classList.remove('open'));
@@ -2782,39 +2820,125 @@ function extractBooking(text) {
 }
 
 let _importFields = null;
-$('btnImportParse').addEventListener('click', async () => {
-  $('importPreview').innerHTML = '';
-  $('btnImportUse').style.display = 'none';
-  let text = $('importText').value.trim();
-  const file = $('importFile').files[0];
-  try {
-    if (file) {
-      $('importStatus').textContent = 'Reading file…';
-      if (/\.pdf$/i.test(file.name)) text = await extractPdfText(file);
-      else text = await file.text();
-    }
-  } catch (e) {
-    $('importStatus').textContent = '⚠️ ' + e.message;
-    return;
-  }
-  if (!text || text.length < 8) { $('importStatus').textContent = 'Paste some text or choose a file first.'; return; }
 
-  const f = extractBooking(text);
+function showImportPreview(f) {
   _importFields = f;
   const labels = {
     category: 'Category', title: 'Title', item_date: 'Date', checkout_date: 'Check-out',
     start_time: 'Start', end_time: 'End', place_name: 'Place', address: 'Address',
     flight_number: 'Flight #', reservation_name: 'Reservation', confirmation_code: 'Conf #',
-    price: 'Price', currency: 'Currency'
+    price: 'Price', currency: 'Currency', notes: 'Notes'
   };
   const rows = Object.keys(labels).map((k) => {
     const v = f[k];
     return `<div class="row-line" style="justify-content:space-between;"><span class="hint">${labels[k]}</span>`
       + (v ? `<b>${escapeHtml(String(v))}</b>` : `<span class="miss">— not found</span>`) + `</div>`;
   }).join('');
-  $('importStatus').textContent = 'Detected the following — review, then fill the form:';
   $('importPreview').innerHTML = `<div class="import-preview">${rows}</div>`;
   $('btnImportUse').style.display = 'inline-block';
+}
+
+// ---- Claude AI extraction (client-side call, user's own key) --------------
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1]); // strip "data:...;base64,"
+    r.onerror = () => reject(new Error('Could not read file'));
+    r.readAsDataURL(file);
+  });
+}
+
+const AI_FIELDS = ['category', 'title', 'item_date', 'checkout_date', 'start_time', 'end_time',
+  'place_name', 'address', 'flight_number', 'reservation_name', 'confirmation_code', 'price', 'currency', 'notes'];
+
+async function extractWithClaude({ text, file }) {
+  const key = anthropicKey();
+  if (!key) throw new Error('No Claude API key set');
+  const content = [];
+  if (file) {
+    if (/^image\//.test(file.type)) {
+      content.push({ type: 'image', source: { type: 'base64', media_type: file.type, data: await fileToBase64(file) } });
+    } else if (/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)) {
+      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: await fileToBase64(file) } });
+    } else {
+      text = (text ? text + '\n\n' : '') + await file.text(); // .txt / .eml
+    }
+  }
+  const instruction = 'Extract the travel booking details from the provided content into the required JSON schema. '
+    + 'Use an empty string "" for anything not present. Dates must be YYYY-MM-DD; times 24-hour HH:MM. '
+    + 'category must be one of: flight, train, bus, car, lodging, activity, food, other. '
+    + 'For a hotel, set item_date to the check-in date and checkout_date to the check-out date. '
+    + 'For a flight, put the flight number in flight_number and the airports in place_name.'
+    + (text ? ('\n\nContent:\n' + text) : '');
+  content.push({ type: 'text', text: instruction });
+
+  const props = {};
+  for (const k of AI_FIELDS) props[k] = { type: 'string' };
+  const schema = { type: 'object', additionalProperties: false, properties: props, required: AI_FIELDS };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      // Required to call the Anthropic API directly from a browser.
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: anthropicModel(),
+      max_tokens: 1024,
+      output_config: { format: { type: 'json_schema', schema } },
+      system: 'You extract structured travel-booking data from emails, screenshots, photos and PDFs. Respond only through the provided schema.',
+      messages: [{ role: 'user', content }]
+    })
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error((json.error && json.error.message) || ('API error ' + res.status));
+  const block = (json.content || []).find((b) => b.type === 'text');
+  if (!block) throw new Error('No data returned');
+  let f;
+  try { f = JSON.parse(block.text); } catch (e) { throw new Error('AI returned unparseable data'); }
+  for (const k of AI_FIELDS) if (f[k] === '' || f[k] == null) delete f[k]; // let the form skip blanks
+  return f;
+}
+
+async function heuristicParse(file, pastedText) {
+  let text = pastedText;
+  try {
+    if (file) {
+      $('importStatus').textContent = 'Reading file…';
+      if (/\.pdf$/i.test(file.name)) text = await extractPdfText(file);
+      else if (/^image\//.test(file.type)) {
+        $('importStatus').textContent = '⚠️ Basic parsing can\'t read images — enable ✨ Use Claude AI for photos/screenshots.';
+        return;
+      } else text = await file.text();
+    }
+  } catch (e) { $('importStatus').textContent = '⚠️ ' + e.message; return; }
+  if (!text || text.length < 8) { $('importStatus').textContent = 'Nothing readable found.'; return; }
+  $('importStatus').textContent = 'Detected the following — review, then fill the form:';
+  showImportPreview(extractBooking(text));
+}
+
+$('btnImportParse').addEventListener('click', async () => {
+  $('importPreview').innerHTML = '';
+  $('btnImportUse').style.display = 'none';
+  const file = $('importFile').files[0];
+  const pastedText = $('importText').value.trim();
+  if (!file && !pastedText) { $('importStatus').textContent = 'Paste some text or choose a file first.'; return; }
+
+  if ($('importUseAi').checked && anthropicKey()) {
+    $('importStatus').textContent = '✨ Asking Claude to read this…';
+    try {
+      showImportPreview(await extractWithClaude({ text: pastedText, file }));
+      $('importStatus').textContent = '✨ Claude detected the following — review, then fill the form:';
+    } catch (e) {
+      $('importStatus').textContent = '⚠️ AI import failed: ' + e.message + ' — trying basic parsing.';
+      await heuristicParse(file, pastedText);
+    }
+    return;
+  }
+  await heuristicParse(file, pastedText);
 });
 
 $('btnImportUse').addEventListener('click', () => {

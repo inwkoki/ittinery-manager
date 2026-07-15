@@ -18,10 +18,16 @@ keep it all offline-capable.
 - **Travel time & conflict warnings** — pick a mode (drive/walk/transit/cycle) to
   show estimated travel time + distance between consecutive stops, and flag
   overlapping times or connections too tight to make (Google Distance Matrix).
-- **📥 Import a booking** — paste a confirmation email or upload a PDF/.txt/.eml;
-  a client-side heuristic parser (pdf.js for PDFs, no server/LLM) extracts dates,
-  times, place, confirmation code, flight number and price, then pre-fills a new
-  item for you to review. Best-effort — always check before saving.
+- **📥 Import a booking** — two modes:
+  - **Basic** (no key): a client-side heuristic parser (pdf.js for PDFs) extracts
+    dates, times, place, confirmation code, flight number and price from pasted
+    email text / `.txt` / `.eml` / PDF.
+  - **✨ Claude AI** (your own Anthropic key): reads **screenshots, photos and PDFs**
+    of a booking and fills the form far more accurately. The browser calls the
+    Anthropic Messages API directly with your key (stored only in your browser,
+    never committed); usage is billed to your Anthropic account. Default model
+    Claude Opus 4.8 (switchable to Sonnet 5 / Haiku 4.5 in Settings).
+  Either way the result pre-fills a new item for you to review before saving.
 - **Per-day weather** — forecast icons/highs/lows via Open-Meteo (no key needed),
   shown for dates within the ~16-day forecast window.
 - **🎒 Packing / checklist** — per-trip, with progress count.
