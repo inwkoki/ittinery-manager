@@ -98,29 +98,61 @@ create trigger trg_trips_updated_at
 before update on public.trips
 for each row execute function public.set_updated_at();
 
+-- =====================================================================
+-- Optional auth: per-user ownership
+-- =====================================================================
+-- Add a user_id column so signed-in users' trips are private to them.
+-- Legacy rows (created before you enabled auth) keep user_id = NULL and
+-- stay accessible to the anonymous/publishable key, so nothing you already
+-- have disappears. New rows created while signed in are stamped with the
+-- user's id and are only visible/editable by that user.
+alter table public.trips add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.itinerary_items add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
+create index if not exists trips_user_id_idx on public.trips(user_id);
+create index if not exists itinerary_items_user_id_idx on public.itinerary_items(user_id);
+
 -- Row Level Security
--- The app connects with the public "publishable" key, which has no user
--- login attached, so RLS policies here are wide open (anyone with the
--- URL+key can read/write). That's fine for a private single-user tool
--- that you don't share, but do NOT reuse this schema for anything with
--- other users' data without adding real auth + tighter policies.
+--   * anonymous key (not signed in): can read/write only the shared legacy
+--     rows where user_id IS NULL.
+--   * signed-in user: can read/write only their own rows (user_id = auth.uid()).
 alter table public.itinerary_items enable row level security;
 alter table public.trips enable row level security;
 
+-- Drop the previous wide-open policies if they exist.
 drop policy if exists "public read" on public.itinerary_items;
-create policy "public read" on public.itinerary_items for select using (true);
 drop policy if exists "public insert" on public.itinerary_items;
-create policy "public insert" on public.itinerary_items for insert with check (true);
 drop policy if exists "public update" on public.itinerary_items;
-create policy "public update" on public.itinerary_items for update using (true) with check (true);
 drop policy if exists "public delete" on public.itinerary_items;
-create policy "public delete" on public.itinerary_items for delete using (true);
-
 drop policy if exists "public read" on public.trips;
-create policy "public read" on public.trips for select using (true);
 drop policy if exists "public insert" on public.trips;
-create policy "public insert" on public.trips for insert with check (true);
 drop policy if exists "public update" on public.trips;
-create policy "public update" on public.trips for update using (true) with check (true);
 drop policy if exists "public delete" on public.trips;
-create policy "public delete" on public.trips for delete using (true);
+
+drop policy if exists "own or shared read" on public.trips;
+create policy "own or shared read" on public.trips for select
+  using (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared insert" on public.trips;
+create policy "own or shared insert" on public.trips for insert
+  with check (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared update" on public.trips;
+create policy "own or shared update" on public.trips for update
+  using (user_id is null or user_id = auth.uid())
+  with check (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared delete" on public.trips;
+create policy "own or shared delete" on public.trips for delete
+  using (user_id is null or user_id = auth.uid());
+
+drop policy if exists "own or shared read" on public.itinerary_items;
+create policy "own or shared read" on public.itinerary_items for select
+  using (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared insert" on public.itinerary_items;
+create policy "own or shared insert" on public.itinerary_items for insert
+  with check (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared update" on public.itinerary_items;
+create policy "own or shared update" on public.itinerary_items for update
+  using (user_id is null or user_id = auth.uid())
+  with check (user_id is null or user_id = auth.uid());
+drop policy if exists "own or shared delete" on public.itinerary_items;
+create policy "own or shared delete" on public.itinerary_items for delete
+  using (user_id is null or user_id = auth.uid());
