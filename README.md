@@ -15,6 +15,13 @@ keep it all offline-capable.
 - **💰 Budget dashboard** — totals by category and by day, with **multi-currency
   conversion** (live rates from open.er-api.com, cached, with an offline fallback).
 - **🗺️ Map view** — all places geocoded and pinned on a Google Map.
+- **Travel time & conflict warnings** — pick a mode (drive/walk/transit/cycle) to
+  show estimated travel time + distance between consecutive stops, and flag
+  overlapping times or connections too tight to make (Google Distance Matrix).
+- **📥 Import a booking** — paste a confirmation email or upload a PDF/.txt/.eml;
+  a client-side heuristic parser (pdf.js for PDFs, no server/LLM) extracts dates,
+  times, place, confirmation code, flight number and price, then pre-fills a new
+  item for you to review. Best-effort — always check before saving.
 - **Per-day weather** — forecast icons/highs/lows via Open-Meteo (no key needed),
   shown for dates within the ~16-day forecast window.
 - **🎒 Packing / checklist** — per-trip, with progress count.

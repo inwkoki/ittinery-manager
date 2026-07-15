@@ -429,6 +429,39 @@
   .hint { font-size: 12.5px; color: var(--text-dim); }
   .hint a { color: var(--accent); }
   .pac-container { z-index: 10000; }
+  /* Travel time connector between consecutive cards in a day */
+  .travel-connector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: -4px 0 10px 18px;
+    padding-left: 10px;
+    border-left: 2px dashed var(--border);
+  }
+  .travel-connector .warn { color: var(--danger); font-weight: 700; }
+  .conflict-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b42318;
+  }
+  .import-preview {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-top: 12px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .import-preview .row-line { color: var(--text); }
+  .import-preview .miss { color: var(--text-dim); font-style: italic; }
   .photo-preview-wrap { position: relative; display: inline-block; margin-top: 8px; }
   .photo-preview-wrap img { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
   .photo-preview-wrap button {
@@ -499,6 +532,7 @@
         <button class="btn btn-ghost" id="btnChecklist" data-i18n-title="packing">🎒</button>
         <button class="btn btn-ghost" id="btnShare" data-i18n-title="share">🔗</button>
         <button class="btn btn-ghost" id="btnNotify" data-i18n-title="notify">🔔</button>
+        <button class="btn btn-ghost" id="btnImport" data-i18n-title="import">📥</button>
         <button class="btn btn-ghost" id="btnExport" data-i18n="export">⬇ Export</button>
         <button class="btn btn-ghost" id="btnSettings2">⚙</button>
         <button class="btn btn-primary" id="btnNew" data-i18n="newItem">+ New Item</button>
@@ -526,6 +560,13 @@
         <option value="activity">Activity</option>
         <option value="food">Food</option>
         <option value="other">Other</option>
+      </select>
+      <select id="travelMode" title="Travel time mode">
+        <option value="">🚦 Travel time: off</option>
+        <option value="DRIVING">🚗 Driving</option>
+        <option value="WALKING">🚶 Walking</option>
+        <option value="TRANSIT">🚌 Transit</option>
+        <option value="BICYCLING">🚲 Cycling</option>
       </select>
     </div>
 
@@ -862,6 +903,32 @@
     <div class="modal-actions"><div></div><div class="right">
       <button type="button" class="btn btn-secondary" id="btnAuthClose" data-i18n="close">Close</button>
     </div></div>
+  </div>
+</div>
+
+<!-- ================= IMPORT MODAL ================= -->
+<div class="overlay" id="importOverlay">
+  <div class="modal" style="max-width:560px;">
+    <h2 data-i18n="importTitle">📥 Import a booking</h2>
+    <div class="hint" style="margin-bottom:12px;" data-i18n="importHint">
+      Paste a confirmation email, or upload a PDF / .txt / .eml file. The app extracts
+      what it can (dates, times, place, confirmation code, flight number, price) and
+      pre-fills a new item for you to review before saving. Best-effort — always check it.
+    </div>
+    <textarea id="importText" style="min-height:120px;" placeholder="Paste confirmation email text here…"></textarea>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <input type="file" id="importFile" accept=".pdf,.txt,.eml,text/plain" style="flex:1; padding:6px;" />
+      <button type="button" class="btn btn-save" id="btnImportParse" data-i18n="parse">Parse</button>
+    </div>
+    <div class="hint" id="importStatus" style="margin-top:8px;"></div>
+    <div id="importPreview"></div>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn btn-secondary" id="btnImportClose" data-i18n="close">Close</button>
+        <button type="button" class="btn btn-save" id="btnImportUse" style="display:none;" data-i18n="useFill">Fill form →</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1976,7 +2043,10 @@ const I18N = {
     mapTitle: '🗺️ Trip Map', packingTitle: '🎒 Packing / Checklist', addItem: 'Add an item…', add: 'Add',
     signIn: 'Sign in', signUp: 'Sign up', signOut: 'Sign out', email: 'Email', password: 'Password',
     signedInAs: 'Signed in as', authHint: 'Sign in to keep your trips private to your account. Optional — the app still works signed out.',
-    back: '← Trips', searchPh: 'Search title, place, notes…', tripNamePh: 'Trip name'
+    back: '← Trips', searchPh: 'Search title, place, notes…', tripNamePh: 'Trip name',
+    import: 'Import a booking', importTitle: '📥 Import a booking',
+    importHint: 'Paste a confirmation email, or upload a PDF / .txt / .eml file. The app extracts what it can (dates, times, place, confirmation code, flight number, price) and pre-fills a new item for you to review before saving. Best-effort — always check it.',
+    parse: 'Parse', useFill: 'Fill form →'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -1985,7 +2055,10 @@ const I18N = {
     mapTitle: '🗺️ แผนที่ทริป', packingTitle: '🎒 ของที่ต้องเตรียม / เช็คลิสต์', addItem: 'เพิ่มรายการ…', add: 'เพิ่ม',
     signIn: 'เข้าสู่ระบบ', signUp: 'สมัคร', signOut: 'ออกจากระบบ', email: 'อีเมล', password: 'รหัสผ่าน',
     signedInAs: 'เข้าสู่ระบบในชื่อ', authHint: 'เข้าสู่ระบบเพื่อเก็บทริปเป็นส่วนตัวของบัญชีคุณ (ไม่บังคับ — ใช้แบบไม่ล็อกอินก็ได้)',
-    back: '← ทริป', searchPh: 'ค้นหาชื่อ สถานที่ โน้ต…', tripNamePh: 'ชื่อทริป'
+    back: '← ทริป', searchPh: 'ค้นหาชื่อ สถานที่ โน้ต…', tripNamePh: 'ชื่อทริป',
+    import: 'นำเข้าการจอง', importTitle: '📥 นำเข้าการจอง',
+    importHint: 'วางข้อความอีเมลยืนยัน หรืออัปโหลดไฟล์ PDF / .txt / .eml แล้วแอปจะสกัดข้อมูลเท่าที่ทำได้ (วันที่ เวลา สถานที่ เลขยืนยัน เลขเที่ยวบิน ราคา) มาเติมในฟอร์มรายการใหม่ให้คุณตรวจก่อนบันทึก — เป็นการเดา ควรตรวจสอบทุกครั้ง',
+    parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -2449,11 +2522,331 @@ function onAuthChanged(user) {
 }
 
 // =================================================================
-// Post-render hook: weather + notification check
+// Travel time between consecutive stops + time-conflict warnings
+// =================================================================
+function travelMode() { return localStorage.getItem('itinerary_travel_mode') || ''; }
+$('travelMode').value = travelMode();
+$('travelMode').addEventListener('change', () => {
+  localStorage.setItem('itinerary_travel_mode', $('travelMode').value);
+  analyzeTiming();
+});
+
+// "HH:MM" -> minutes since midnight
+function toMinutes(t) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+
+function getTravelTime(from, to, mode) {
+  return new Promise((resolve) => {
+    const key = `tm_${mode}_${from}=>${to}`;
+    try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c) return resolve(c); } catch (e) {}
+    if (!(window.google && google.maps && google.maps.DistanceMatrixService)) return resolve(null);
+    const svc = new google.maps.DistanceMatrixService();
+    svc.getDistanceMatrix({ origins: [from], destinations: [to], travelMode: mode }, (res, status) => {
+      if (status !== 'OK') return resolve(null);
+      const el = res.rows[0] && res.rows[0].elements[0];
+      if (!el || el.status !== 'OK') return resolve(null);
+      const out = { min: Math.round(el.duration.value / 60), durText: el.duration.text, distText: el.distance.text };
+      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+      resolve(out);
+    });
+  });
+}
+
+async function analyzeTiming() {
+  // Clear anything from a previous pass.
+  document.querySelectorAll('.travel-connector').forEach((e) => e.remove());
+  document.querySelectorAll('.conflict-badge').forEach((e) => e.remove());
+
+  const groups = document.querySelectorAll('.day-group');
+  for (const group of groups) {
+    const cards = [...group.querySelectorAll('.card')];
+    const dayItems = cards.map((c) => items.find((i) => i.id === c.dataset.id)).filter(Boolean);
+
+    // --- 1. Overlapping-time conflicts (any two timed items on the day) ---
+    for (let a = 0; a < dayItems.length; a++) {
+      for (let b = a + 1; b < dayItems.length; b++) {
+        const A = dayItems[a], B = dayItems[b];
+        if (A.category === 'lodging' || B.category === 'lodging') continue;
+        const as = toMinutes(A.start_time), bs = toMinutes(B.start_time);
+        if (as == null || bs == null) continue;
+        const ae = toMinutes(A.end_time) ?? as, be = toMinutes(B.end_time) ?? bs;
+        if (as < be && bs < ae) { // intervals overlap
+          markConflict(cards[b], `⚠ overlaps “${A.title}”`);
+          markConflict(cards[a], `⚠ overlaps “${B.title}”`);
+        }
+      }
+    }
+
+    // --- 2. Travel time + "not enough time to get there" between neighbours ---
+    const mode = travelMode();
+    if (!mode) continue;
+    try { await ensureMaps(); } catch (e) { continue; }
+    for (let k = 0; k < cards.length - 1; k++) {
+      const A = dayItems[k], B = dayItems[k + 1];
+      if (!A || !B || A.category === 'flight' || B.category === 'flight') continue;
+      const from = A.address || A.place_name, to = B.address || B.place_name;
+      if (!from || !to) continue;
+      const tt = await getTravelTime(from, to, mode);
+      if (!tt) continue;
+
+      const conn = document.createElement('div');
+      conn.className = 'travel-connector';
+      let html = `${{ DRIVING: '🚗', WALKING: '🚶', TRANSIT: '🚌', BICYCLING: '🚲' }[mode] || '➡'} ~${tt.durText} · ${tt.distText}`;
+
+      // If we know when A ends and when B starts, flag an impossible gap.
+      const leave = toMinutes(A.end_time) ?? toMinutes(A.start_time);
+      const arrive = toMinutes(B.start_time);
+      if (leave != null && arrive != null) {
+        const gap = arrive - leave;
+        if (gap < 0) {
+          html += `<span class="warn">⚠ next stop starts before this one ends — check times/order</span>`;
+          markConflict(cards[k + 1], '⚠ time clash');
+        } else if (gap < tt.min) {
+          html += `<span class="warn">⚠ only ${gap} min between them — need ~${tt.min} min</span>`;
+          markConflict(cards[k + 1], '⚠ tight connection');
+        }
+      }
+      conn.innerHTML = html;
+      cards[k].insertAdjacentElement('afterend', conn);
+    }
+  }
+}
+
+function markConflict(card, text) {
+  const top = card.querySelector('.card-top');
+  if (!top) return;
+  // Avoid duplicate identical badges on the same card.
+  if ([...top.querySelectorAll('.conflict-badge')].some((b) => b.textContent === text)) return;
+  const badge = document.createElement('span');
+  badge.className = 'conflict-badge';
+  badge.textContent = text;
+  top.appendChild(badge);
+}
+
+// Re-run travel analysis after a manual reorder (order affects the connectors).
+const _origPersistDayOrder = persistDayOrder;
+persistDayOrder = async function (dayGroupEl) {
+  await _origPersistDayOrder(dayGroupEl);
+  analyzeTiming();
+};
+
+// =================================================================
+// Import a booking (paste email / upload PDF·txt·eml -> prefill form)
+// =================================================================
+const importOverlay = $('importOverlay');
+$('btnImport').addEventListener('click', () => {
+  $('importStatus').textContent = '';
+  $('importPreview').innerHTML = '';
+  $('btnImportUse').style.display = 'none';
+  importOverlay.classList.add('open');
+});
+$('btnImportClose').addEventListener('click', () => importOverlay.classList.remove('open'));
+importOverlay.addEventListener('click', (e) => { if (e.target === importOverlay) importOverlay.classList.remove('open'); });
+
+let _pdfjsLoading = null;
+function ensurePdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  if (_pdfjsLoading) return _pdfjsLoading;
+  _pdfjsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = () => reject(new Error('Could not load the PDF reader'));
+    document.head.appendChild(s);
+  });
+  return _pdfjsLoading;
+}
+
+async function extractPdfText(file) {
+  await ensurePdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    text += content.items.map((i) => i.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+function iso(y, m, d) { return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+
+// Pull every date we can recognise, in text order, as {idx, date}.
+function findDates(text) {
+  const found = [];
+  let m;
+  const reIso = /\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g;
+  while ((m = reIso.exec(text))) found.push({ idx: m.index, date: iso(+m[1], +m[2], +m[3]) });
+  const reMonName = /\b(\d{1,2})?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})?(?:st|nd|rd|th)?,?\s*(20\d{2})\b/gi;
+  while ((m = reMonName.exec(text))) {
+    const mon = MONTHS[m[2].toLowerCase().slice(0, 3)];
+    const day = m[1] || m[3];
+    if (mon && day) found.push({ idx: m.index, date: iso(+m[4], mon, +day) });
+  }
+  const reSlash = /\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/g;
+  while ((m = reSlash.exec(text))) {
+    let a = +m[1], b = +m[2]; // assume US M/D unless first > 12
+    const mo = a > 12 ? b : a, da = a > 12 ? a : b;
+    found.push({ idx: m.index, date: iso(+m[3], mo, da) });
+  }
+  return found.sort((x, y) => x.idx - y.idx);
+}
+
+function findTimes(text) {
+  const out = [];
+  const re = /\b(\d{1,2}):(\d{2})\s*(am|pm)?\b/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    let h = +m[1]; const min = m[2]; const ap = (m[3] || '').toLowerCase();
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+    if (h <= 23) out.push(`${String(h).padStart(2, '0')}:${min}`);
+  }
+  return out;
+}
+
+function detectCategory(t) {
+  const s = t.toLowerCase();
+  if (/\b(flight|airline|boarding|departure gate|pnr|e-ticket|airways|airlines)\b/.test(s)) return 'flight';
+  if (/\b(check-?in|check-?out|hotel|resort|ryokan|hostel|room type|nights?)\b/.test(s)) return 'lodging';
+  if (/\b(restaurant|table for|reservation for|dining|omakase)\b/.test(s)) return 'food';
+  if (/\b(train|railway|shinkansen|platform|coach|seat car)\b/.test(s)) return 'train';
+  if (/\b(bus|coach service)\b/.test(s)) return 'bus';
+  if (/\b(car rental|pick-?up location|rental car|transfer)\b/.test(s)) return 'car';
+  return 'activity';
+}
+
+function firstMatch(text, res) {
+  for (const re of res) { const m = text.match(re); if (m) return m[1].trim(); }
+  return '';
+}
+
+function extractBooking(text) {
+  const f = { category: detectCategory(text) };
+  const dates = findDates(text);
+  const times = findTimes(text);
+  if (dates.length) f.item_date = dates[0].date;
+  if (f.category === 'lodging' && dates.length > 1 && dates[dates.length - 1].date !== dates[0].date) {
+    f.checkout_date = dates[dates.length - 1].date;
+  }
+  if (times.length) f.start_time = times[0];
+  if (times.length > 1) f.end_time = times[1];
+
+  // Require the code to contain at least one digit (via lookahead) so venue
+  // words like "Hotel" in a subject line ("Confirmation - Hotel Gracery")
+  // don't get mistaken for a confirmation code.
+  f.confirmation_code = firstMatch(text, [
+    /(?:confirmation|booking|reservation|itinerary|record locator|pnr)\s*(?:code|number|no\.?|id|ref(?:erence)?|locator)?\s*[:#]\s*((?=[A-Z0-9]*\d)[A-Z0-9]{4,10})\b/i,
+    /\b(?:conf|pnr|ref)\.?#?\s*[:#]?\s*((?=[A-Z0-9]*\d)[A-Z0-9]{5,10})\b/i
+  ]);
+  f.flight_number = firstMatch(text, [
+    /\bflight\s*(?:no\.?|number|#)?\s*[:#-]?\s*([A-Z]{2}\s?\d{2,4})\b/i,
+    /\b([A-Z]{2}\d{2,4})\b(?=[^]{0,20}(?:flight|depart))/i
+  ]).replace(/\s+/g, '');
+
+  const priceM = text.match(/(?:total|amount|price|grand total)\D{0,12}(USD|EUR|GBP|JPY|THB|AUD|SGD|[$€£¥฿])\s?([\d,]+(?:\.\d{1,2})?)/i)
+    || text.match(/(USD|EUR|GBP|JPY|THB|[$€£¥฿])\s?([\d,]+\.\d{2})\b/);
+  if (priceM) {
+    const symMap = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '฿': 'THB' };
+    f.currency = symMap[priceM[1]] || priceM[1].toUpperCase();
+    f.price = priceM[2].replace(/,/g, '');
+  }
+
+  // Place / hotel / reservation name: first line mentioning a venue-ish keyword.
+  const lines = text.split(/\n|\.\s|\s{2,}/).map((l) => l.trim()).filter((l) => l.length > 3 && l.length < 90);
+  if (f.category === 'lodging') {
+    f.place_name = (lines.find((l) => /hotel|resort|ryokan|inn|hostel/i.test(l)) || '').slice(0, 80);
+    f.reservation_name = f.place_name;
+  } else if (f.category === 'flight') {
+    f.reservation_name = firstMatch(text, [/\b([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:airlines|airways)\b/i]);
+  } else {
+    f.reservation_name = firstMatch(text, [/(?:reservation|booked)\s+(?:at|with|for)\s+([A-Za-z0-9' &-]{3,40})/i]);
+  }
+
+  // Address: a line with a number + comma + street/zip/country hint, but not a
+  // labelled field line (Check-in, Total, Departure…) which can look similar.
+  const labelLine = /^(check-?in|check-?out|confirmation|booking|reservation|total|amount|price|flight|departure|arrival|date|time|room)\b/i;
+  f.address = (lines.find((l) => !labelLine.test(l) && /\d/.test(l) && /,/.test(l)
+    && /\d{3,}|japan|thailand|street|st\.|road|rd\.|ave|ku,|,\s*[A-Z]{2}\b/i.test(l)) || '').slice(0, 120);
+
+  // Title guess.
+  if (f.category === 'flight') f.title = `Flight ${f.flight_number || ''}`.trim();
+  else if (f.category === 'lodging') f.title = f.place_name || 'Hotel stay';
+  else f.title = f.reservation_name || (lines[0] || 'Imported booking').slice(0, 60);
+
+  return f;
+}
+
+let _importFields = null;
+$('btnImportParse').addEventListener('click', async () => {
+  $('importPreview').innerHTML = '';
+  $('btnImportUse').style.display = 'none';
+  let text = $('importText').value.trim();
+  const file = $('importFile').files[0];
+  try {
+    if (file) {
+      $('importStatus').textContent = 'Reading file…';
+      if (/\.pdf$/i.test(file.name)) text = await extractPdfText(file);
+      else text = await file.text();
+    }
+  } catch (e) {
+    $('importStatus').textContent = '⚠️ ' + e.message;
+    return;
+  }
+  if (!text || text.length < 8) { $('importStatus').textContent = 'Paste some text or choose a file first.'; return; }
+
+  const f = extractBooking(text);
+  _importFields = f;
+  const labels = {
+    category: 'Category', title: 'Title', item_date: 'Date', checkout_date: 'Check-out',
+    start_time: 'Start', end_time: 'End', place_name: 'Place', address: 'Address',
+    flight_number: 'Flight #', reservation_name: 'Reservation', confirmation_code: 'Conf #',
+    price: 'Price', currency: 'Currency'
+  };
+  const rows = Object.keys(labels).map((k) => {
+    const v = f[k];
+    return `<div class="row-line" style="justify-content:space-between;"><span class="hint">${labels[k]}</span>`
+      + (v ? `<b>${escapeHtml(String(v))}</b>` : `<span class="miss">— not found</span>`) + `</div>`;
+  }).join('');
+  $('importStatus').textContent = 'Detected the following — review, then fill the form:';
+  $('importPreview').innerHTML = `<div class="import-preview">${rows}</div>`;
+  $('btnImportUse').style.display = 'inline-block';
+});
+
+$('btnImportUse').addEventListener('click', () => {
+  if (!_importFields) return;
+  const f = _importFields;
+  importOverlay.classList.remove('open');
+  openForm(null); // fresh "new item" form
+  if (f.item_date) $('f-date').value = f.item_date;
+  if (f.category) $('f-category').value = f.category;
+  if (f.start_time) $('f-start').value = f.start_time;
+  if (f.end_time) $('f-end').value = f.end_time;
+  if (f.title) $('f-title').value = f.title;
+  if (f.place_name) $('f-place-name').value = f.place_name;
+  if (f.address) $('f-address').value = f.address;
+  if (f.flight_number) $('f-flight-number').value = f.flight_number;
+  if (f.checkout_date) $('f-checkout-date').value = f.checkout_date;
+  if (f.reservation_name) $('f-reservation-name').value = f.reservation_name;
+  if (f.confirmation_code) $('f-confirmation').value = f.confirmation_code;
+  if (f.price) $('f-price').value = f.price;
+  if (f.currency) $('f-currency').value = f.currency;
+  toggleFlightRow();
+  toggleBookingRow();
+  toast('Review the imported details, then Save');
+});
+
+// =================================================================
+// Post-render hook: weather + notification check + timing analysis
 // =================================================================
 function afterItemsLoaded() {
   injectWeather();
   checkReminderNotifications(false);
+  analyzeTiming();
 }
 
 // =================================================================
