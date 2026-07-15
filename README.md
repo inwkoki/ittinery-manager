@@ -22,11 +22,14 @@ keep it all offline-capable.
   - **Basic** (no key): a client-side heuristic parser (pdf.js for PDFs) extracts
     dates, times, place, confirmation code, flight number and price from pasted
     email text / `.txt` / `.eml` / PDF.
-  - **✨ Claude AI** (your own Anthropic key): reads **screenshots, photos and PDFs**
-    of a booking and fills the form far more accurately. The browser calls the
-    Anthropic Messages API directly with your key (stored only in your browser,
-    never committed); usage is billed to your Anthropic account. Default model
-    Claude Opus 4.8 (switchable to Sonnet 5 / Haiku 4.5 in Settings).
+  - **✨ AI** (your own key): reads **screenshots, photos and PDFs** of a booking and
+    fills the form far more accurately. Two providers, picked in Settings:
+    - **Google Gemini — free tier** (default): free API key from
+      [aistudio.google.com](https://aistudio.google.com/app/apikey), no card required.
+    - **Anthropic Claude** — paid; needs console.anthropic.com credits.
+    The browser calls the provider's API directly with your key (stored only in your
+    browser, never committed); Gemini uses `x-goog-api-key`, Claude uses
+    `anthropic-dangerous-direct-browser-access`. Both force structured JSON output.
   Either way the result pre-fills a new item for you to review before saving.
 - **Per-day weather** — forecast icons/highs/lows via Open-Meteo (no key needed),
   shown for dates within the ~16-day forecast window.
