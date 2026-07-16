@@ -1586,12 +1586,16 @@ function renderCard(item) {
     ${item.ticket_data ? `<img class="qr-thumb" data-ticket="${encodeURIComponent(item.ticket_data)}" alt="Ticket QR" />` : ''}
     <div class="card-actions no-print">
       <button class="icon-btn" data-edit="${item.id}">Edit</button>
+      <button class="icon-btn dup-btn" data-dup="${item.id}">⧉</button>
       <button class="icon-btn" data-cal="${item.id}" title="Add to Google Calendar">📅</button>
       <button class="icon-btn danger" data-del="${item.id}">Delete</button>
     </div>
   `;
 
   card.querySelector('[data-edit]').addEventListener('click', () => openForm(item));
+  const _dupBtn = card.querySelector('[data-dup]');
+  _dupBtn.title = t('dupBtn');
+  _dupBtn.addEventListener('click', () => duplicateItem(item));
   card.querySelector('[data-cal]').addEventListener('click', () => window.open(buildGoogleCalendarUrl(item), '_blank', 'noopener'));
   card.querySelector('[data-del]').addEventListener('click', () => deleteItem(item.id));
   const qrImg = card.querySelector('.qr-thumb');
@@ -1750,6 +1754,40 @@ function openForm(item) {
 
 function closeForm() {
   overlay.classList.remove('open');
+}
+
+// Open the item form pre-filled from an existing item, but as a NEW item
+// (no id) — so saving inserts a copy. Handy for a place you visit on more than
+// one day: duplicate it, change the date, Save.
+function duplicateItem(item) {
+  openForm(null);
+  $('f-date').value = item.item_date;
+  $('f-start').value = item.start_time || '';
+  $('f-end').value = item.end_time || '';
+  $('f-category').value = item.category || 'activity';
+  $('f-title').value = item.title || '';
+  $('f-place-name').value = item.place_name || '';
+  $('f-place-link').value = item.place_link || '';
+  $('f-address').value = item.address || '';
+  $('f-opening-hours').value = item.opening_hours || '';
+  $('f-opening-hours-periods').value = item.opening_hours_periods || '';
+  $('f-flight-number').value = item.flight_number || '';
+  $('f-checkout-date').value = item.checkout_date || '';
+  $('f-needs-booking').checked = !!item.needs_booking;
+  $('f-remind-days').value = item.remind_days_before ?? '';
+  $('f-is-booked').checked = !!item.is_booked;
+  $('f-reservation-name').value = item.reservation_name || '';
+  $('f-confirmation').value = item.confirmation_code || '';
+  $('f-price').value = item.price ?? '';
+  $('f-currency').value = item.currency || 'USD';
+  $('f-ticket-data').value = item.ticket_data || '';
+  $('f-notes').value = item.notes || '';
+  setPhotoPreview(item.photo_url || '');
+  toggleFlightRow();
+  toggleBookingRow();
+  $('formHeading').textContent = t('dupTitle');
+  toast(t('dupHint'));
+  $('f-date').focus();
 }
 
 $('btnNew').addEventListener('click', () => openForm(null));
@@ -2122,7 +2160,9 @@ const I18N = {
     import: 'Import a booking', importTitle: '📥 Import a booking',
     importHint: 'Paste a confirmation email or a screenshot (Ctrl/⌘+V), or upload a photo / PDF / .txt / .eml. With ✨ Use AI on, it reads images too. It pre-fills a new item for you to review before saving — always check it.',
     parse: 'Parse', useFill: 'Fill form →',
-    useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)'
+    useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)',
+    dupBtn: 'Duplicate to another day', dupTitle: 'Duplicate Item',
+    dupHint: 'Editing a copy — change the date, then Save'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2135,7 +2175,9 @@ const I18N = {
     import: 'นำเข้าการจอง', importTitle: '📥 นำเข้าการจอง',
     importHint: 'วางข้อความอีเมลยืนยัน หรือวางสกรีนช็อต (Ctrl/⌘+V) หรืออัปโหลดรูป / PDF / .txt / .eml ก็ได้ เมื่อเปิด ✨ ใช้ AI จะอ่านรูปได้ด้วย แล้วเติมในฟอร์มรายการใหม่ให้คุณตรวจก่อนบันทึก — ควรตรวจสอบทุกครั้ง',
     parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →',
-    useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)'
+    useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)',
+    dupBtn: 'ทำสำเนาไปวันอื่น', dupTitle: 'ทำสำเนารายการ',
+    dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';

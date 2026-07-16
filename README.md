@@ -35,7 +35,8 @@ keep it all offline-capable.
   shown for dates within the ~16-day forecast window.
 - **🎒 Packing / checklist** — per-trip, with progress count.
 - **🔗 Share** — copy/share a deep link to a trip.
-- **Duplicate trip** — clone a trip and all its items as a template.
+- **Duplicate trip / duplicate item** — clone a whole trip as a template, or copy
+  a single item (⧉) onto another day for a place you visit more than once.
 - **QR tickets**, **Google Calendar** quick-add, **PDF/JPG/text export**.
 - **Offline (PWA)** — installable, service-worker-cached app shell + libraries.
 - **🌐 Thai / English** UI toggle.
