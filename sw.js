@@ -1,6 +1,6 @@
 // Service worker: offline app shell + cached CDN libraries.
 // Bump CACHE version whenever index.html or the cached asset list changes.
-const CACHE = 'itinerary-v5';
+const CACHE = 'itinerary-v6';
 const SHELL = [
   './',
   './index.html',

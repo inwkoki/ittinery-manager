@@ -960,7 +960,13 @@
     <div class="hint" id="aiKeyHint" style="display:none; margin-bottom:8px;">
       🔑 Add a Gemini (free) or Claude API key in Settings (⚙) to enable AI import.
     </div>
-    <textarea id="importText" style="min-height:120px;" placeholder="Paste confirmation email text here…"></textarea>
+    <div id="importDrop" style="border:1px dashed var(--border); border-radius:10px; padding:8px;">
+      <textarea id="importText" style="min-height:110px; border:none; background:transparent;" placeholder="Paste confirmation text here — or paste a screenshot (Ctrl/⌘+V), or drop an image below"></textarea>
+      <div class="photo-preview-wrap" id="importPastePreview" style="display:none;">
+        <img id="importPasteImg" alt="Pasted screenshot" />
+        <button type="button" id="btnClearPaste" title="Remove">✕</button>
+      </div>
+    </div>
     <div style="display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;">
       <input type="file" id="importFile" accept=".pdf,.txt,.eml,.png,.jpg,.jpeg,.webp,image/*,text/plain" style="flex:1; padding:6px;" />
       <button type="button" class="btn btn-save" id="btnImportParse" data-i18n="parse">Parse</button>
@@ -2114,7 +2120,7 @@ const I18N = {
     signedInAs: 'Signed in as', authHint: 'Sign in to keep your trips private to your account. Optional — the app still works signed out.',
     back: '← Trips', searchPh: 'Search title, place, notes…', tripNamePh: 'Trip name',
     import: 'Import a booking', importTitle: '📥 Import a booking',
-    importHint: 'Paste a confirmation email, or upload a PDF / .txt / .eml file. The app extracts what it can (dates, times, place, confirmation code, flight number, price) and pre-fills a new item for you to review before saving. Best-effort — always check it.',
+    importHint: 'Paste a confirmation email or a screenshot (Ctrl/⌘+V), or upload a photo / PDF / .txt / .eml. With ✨ Use AI on, it reads images too. It pre-fills a new item for you to review before saving — always check it.',
     parse: 'Parse', useFill: 'Fill form →',
     useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)'
   },
@@ -2127,7 +2133,7 @@ const I18N = {
     signedInAs: 'เข้าสู่ระบบในชื่อ', authHint: 'เข้าสู่ระบบเพื่อเก็บทริปเป็นส่วนตัวของบัญชีคุณ (ไม่บังคับ — ใช้แบบไม่ล็อกอินก็ได้)',
     back: '← ทริป', searchPh: 'ค้นหาชื่อ สถานที่ โน้ต…', tripNamePh: 'ชื่อทริป',
     import: 'นำเข้าการจอง', importTitle: '📥 นำเข้าการจอง',
-    importHint: 'วางข้อความอีเมลยืนยัน หรืออัปโหลดไฟล์ PDF / .txt / .eml แล้วแอปจะสกัดข้อมูลเท่าที่ทำได้ (วันที่ เวลา สถานที่ เลขยืนยัน เลขเที่ยวบิน ราคา) มาเติมในฟอร์มรายการใหม่ให้คุณตรวจก่อนบันทึก — เป็นการเดา ควรตรวจสอบทุกครั้ง',
+    importHint: 'วางข้อความอีเมลยืนยัน หรือวางสกรีนช็อต (Ctrl/⌘+V) หรืออัปโหลดรูป / PDF / .txt / .eml ก็ได้ เมื่อเปิด ✨ ใช้ AI จะอ่านรูปได้ด้วย แล้วเติมในฟอร์มรายการใหม่ให้คุณตรวจก่อนบันทึก — ควรตรวจสอบทุกครั้ง',
     parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →',
     useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)'
   }
@@ -2712,10 +2718,30 @@ function aiProvider() { return localStorage.getItem(AI_PROVIDER_STORAGE) || 'gem
 // Whether the currently-selected provider has a key (i.e. AI import is usable).
 function aiReady() { return aiProvider() === 'gemini' ? !!geminiKey() : !!anthropicKey(); }
 
+// A screenshot pasted or dropped into the modal (not via the file picker).
+let importPastedFile = null;
+function setPastedImage(file) {
+  importPastedFile = file || null;
+  const wrap = $('importPastePreview');
+  if (file) {
+    $('importPasteImg').src = URL.createObjectURL(file);
+    wrap.style.display = 'inline-block';
+    $('importFile').value = '';                 // pasted image supersedes any picked file
+    if (!$('importUseAi').disabled) $('importUseAi').checked = true; // images need AI
+    $('importStatus').textContent = aiReady()
+      ? '📸 Screenshot ready — click Parse.'
+      : '📸 Screenshot ready — add a Gemini (free) key in Settings (⚙) to read it.';
+  } else {
+    wrap.style.display = 'none';
+    $('importPasteImg').removeAttribute('src');
+  }
+}
+
 $('btnImport').addEventListener('click', () => {
   $('importStatus').textContent = '';
   $('importPreview').innerHTML = '';
   $('btnImportUse').style.display = 'none';
+  setPastedImage(null);
   const ready = aiReady();
   $('importUseAi').checked = ready;             // default on when a key is set
   $('importUseAi').disabled = !ready;
@@ -2724,6 +2750,37 @@ $('btnImport').addEventListener('click', () => {
 });
 $('btnImportClose').addEventListener('click', () => importOverlay.classList.remove('open'));
 importOverlay.addEventListener('click', (e) => { if (e.target === importOverlay) importOverlay.classList.remove('open'); });
+$('btnClearPaste').addEventListener('click', () => { setPastedImage(null); $('importStatus').textContent = ''; });
+$('importFile').addEventListener('change', () => { if ($('importFile').files[0]) setPastedImage(null); });
+
+// Grab an image from a clipboard paste (Ctrl/⌘+V) anywhere in the open modal.
+window.addEventListener('paste', (e) => {
+  if (!importOverlay.classList.contains('open')) return;
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const it of items) {
+    if (it.kind === 'file' && /^image\//.test(it.type)) {
+      const blob = it.getAsFile();
+      if (blob) {
+        e.preventDefault();
+        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        setPastedImage(new File([blob], 'pasted.' + ext, { type: blob.type }));
+      }
+      return;
+    }
+  }
+});
+
+// Drag-and-drop an image onto the modal's text area.
+const importDrop = $('importDrop');
+['dragover', 'dragenter'].forEach((ev) => importDrop.addEventListener(ev, (e) => {
+  e.preventDefault(); importDrop.style.borderColor = 'var(--accent)';
+}));
+['dragleave', 'drop'].forEach((ev) => importDrop.addEventListener(ev, () => { importDrop.style.borderColor = 'var(--border)'; }));
+importDrop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && /^image\//.test(f.type)) setPastedImage(f);
+});
 
 let _pdfjsLoading = null;
 function ensurePdfJs() {
@@ -3019,7 +3076,7 @@ async function heuristicParse(file, pastedText) {
 $('btnImportParse').addEventListener('click', async () => {
   $('importPreview').innerHTML = '';
   $('btnImportUse').style.display = 'none';
-  const file = $('importFile').files[0];
+  const file = $('importFile').files[0] || importPastedFile;
   const pastedText = $('importText').value.trim();
   if (!file && !pastedText) { $('importStatus').textContent = 'Paste some text or choose a file first.'; return; }
 
