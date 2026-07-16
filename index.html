@@ -194,7 +194,8 @@
   .card.compact { padding: 10px 14px; }
   .card.compact .card-title { font-size: 14px; margin: 1px 0 2px; }
   .card.compact .row-line, .card.compact .notes { font-size: 12.5px; margin-top: 2px; }
-  .card.compact .photo-thumb, .card.compact .qr-thumb { width: 44px; height: 44px; }
+  .card.compact .qr-thumb { width: 44px; height: 44px; }
+  .card.compact .photo-thumb { width: 60px; height: 60px; }
   .drag-handle {
     cursor: grab;
     color: var(--text-dim);
@@ -261,7 +262,8 @@
     flex-shrink: 0;
   }
   .qr-thumb { cursor: pointer; padding: 4px; }
-  .photo-thumb { object-fit: cover; }
+  .photo-thumb { width: 84px; height: 84px; object-fit: cover; cursor: zoom-in; }
+  .photo-thumb:hover { border-color: var(--accent); }
   .card-actions {
     display: flex;
     flex-direction: column;
@@ -750,6 +752,17 @@
     <div class="ticket-text" id="qrText"></div>
     <div style="margin-top:14px;">
       <button class="btn btn-secondary" id="btnCloseQr">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PHOTO LIGHTBOX ================= -->
+<div class="overlay" id="photoOverlay">
+  <div class="lightbox" style="max-width:92vw; padding:14px;">
+    <img id="photoLarge" alt="Place photo"
+         style="width:auto; height:auto; max-width:86vw; max-height:78vh; border-radius:10px; background:#fff;" />
+    <div style="margin-top:12px;">
+      <button class="btn btn-secondary" id="btnClosePhoto" data-i18n="close">Close</button>
     </div>
   </div>
 </div>
@@ -1600,6 +1613,11 @@ function renderCard(item) {
   card.querySelector('[data-del]').addEventListener('click', () => deleteItem(item.id));
   const qrImg = card.querySelector('.qr-thumb');
   if (qrImg) qrImg.addEventListener('click', () => openQrLightbox(item.ticket_data));
+  const photoImg = card.querySelector('.photo-thumb');
+  if (photoImg) {
+    photoImg.title = 'Click to enlarge';
+    photoImg.addEventListener('click', () => openPhotoLightbox(item.photo_url));
+  }
 
   makeDraggable(card);
   return card;
@@ -1677,6 +1695,15 @@ async function openQrLightbox(ticketData) {
 }
 $('btnCloseQr').addEventListener('click', () => $('qrOverlay').classList.remove('open'));
 $('qrOverlay').addEventListener('click', (e) => { if (e.target.id === 'qrOverlay') e.currentTarget.classList.remove('open'); });
+
+// Tap a place photo to see it full-size (Google Maps photos are detailed).
+function openPhotoLightbox(url) {
+  if (!url) return;
+  $('photoLarge').src = url;
+  $('photoOverlay').classList.add('open');
+}
+$('btnClosePhoto').addEventListener('click', () => $('photoOverlay').classList.remove('open'));
+$('photoOverlay').addEventListener('click', (e) => { if (e.target.id === 'photoOverlay') e.currentTarget.classList.remove('open'); });
 
 // ---- Item form ----
 const overlay = $('formOverlay');
@@ -1880,7 +1907,10 @@ function onPlaceChanged() {
     ? JSON.stringify(place.opening_hours.periods)
     : '';
   if (place.photos && place.photos.length) {
-    setPhotoPreview(place.photos[0].getUrl({ maxWidth: 400, maxHeight: 400 }));
+    // Store a larger image (up to ~1200px) so the click-to-enlarge view stays
+    // sharp — storefront/building photos have a lot of detail. The card still
+    // shows it as a small thumbnail.
+    setPhotoPreview(place.photos[0].getUrl({ maxWidth: 1200, maxHeight: 1200 }));
   } else {
     setPhotoPreview('');
   }
