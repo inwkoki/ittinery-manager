@@ -1031,7 +1031,14 @@
           </select>
         </div>
         <div><label>PNR / code</label><input type="text" id="vaultDocPnr" placeholder="e.g. ABC123" /></div>
-        <div class="full"><label data-i18n="vaultFile">File (image or PDF)</label><input type="file" id="vaultDocFile" accept="image/*,.pdf" style="padding:6px;" /></div>
+        <div class="full">
+          <label data-i18n="vaultFile">File (image or PDF) — or paste a screenshot (Ctrl/⌘+V)</label>
+          <input type="file" id="vaultDocFile" accept="image/*,.pdf" style="padding:6px;" />
+          <div class="photo-preview-wrap" id="vaultPastePreview" style="display:none; margin-top:8px;">
+            <img id="vaultPasteImg" alt="Pasted screenshot" />
+            <button type="button" id="btnVaultClearPaste" title="Remove">✕</button>
+          </div>
+        </div>
         <div class="full"><label>Notes</label><input type="text" id="vaultDocNotes" /></div>
       </div>
       <div style="text-align:right; margin-top:10px;"><button type="button" class="btn btn-save" id="btnVaultAdd" data-i18n="add">Add</button></div>
@@ -1040,9 +1047,12 @@
 
     <div id="vaultList"></div>
 
-    <div class="modal-actions"><div></div><div class="right">
-      <button type="button" class="btn btn-secondary" id="btnVaultClose" data-i18n="close">Close</button>
-    </div></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secondary" id="btnVaultExport" data-i18n="vaultExport">⬇ Save all for offline</button>
+      <div class="right">
+        <button type="button" class="btn btn-secondary" id="btnVaultClose" data-i18n="close">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2257,7 +2267,8 @@ const I18N = {
     vaultBtn: 'Document Vault', vaultTitle: 'Document Vault',
     vaultGateHint: 'Re-enter your password to open the vault.', unlock: 'Unlock',
     vaultHint: 'Private to your account — tickets, QR codes, booking PDFs, PNR codes. Files are stored in your Supabase project and only you can open them.',
-    vaultDocTitle: 'Title *', vaultFile: 'File (image or PDF)'
+    vaultDocTitle: 'Title *', vaultFile: 'File (image or PDF) — or paste a screenshot (Ctrl/⌘+V)',
+    vaultExport: '⬇ Save all for offline'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2279,7 +2290,8 @@ const I18N = {
     vaultBtn: 'ตู้เก็บเอกสาร', vaultTitle: 'ตู้เก็บเอกสาร (Vault)',
     vaultGateHint: 'ใส่รหัสผ่านอีกครั้งเพื่อเปิดตู้เก็บเอกสาร', unlock: 'ปลดล็อก',
     vaultHint: 'ส่วนตัวของบัญชีคุณ — ตั๋ว, QR code, ใบจอง PDF, เลข PNR ไฟล์เก็บในโปรเจ็กต์ Supabase ของคุณ เปิดดูได้เฉพาะคุณ',
-    vaultDocTitle: 'ชื่อ *', vaultFile: 'ไฟล์ (รูปหรือ PDF)'
+    vaultDocTitle: 'ชื่อ *', vaultFile: 'ไฟล์ (รูปหรือ PDF) — หรือวางสกรีนช็อต (Ctrl/⌘+V)',
+    vaultExport: '⬇ บันทึกทั้งหมดไว้ใช้ออฟไลน์'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -2798,11 +2810,46 @@ $('btnVaultUnlock').addEventListener('click', async () => {
 });
 
 async function openVault() {
+  setVaultPasted(null);
+  $('vaultAddStatus').textContent = '';
   vaultOverlay.classList.add('open');
   await loadVaultDocs();
 }
 $('btnVaultClose').addEventListener('click', () => vaultOverlay.classList.remove('open'));
 vaultOverlay.addEventListener('click', (e) => { if (e.target === vaultOverlay) vaultOverlay.classList.remove('open'); });
+
+// ---- Paste / drop a screenshot into the vault add form ----
+let vaultPastedFile = null;
+function setVaultPasted(file) {
+  vaultPastedFile = file || null;
+  const wrap = $('vaultPastePreview');
+  if (file) {
+    $('vaultPasteImg').src = URL.createObjectURL(file);
+    wrap.style.display = 'inline-block';
+    $('vaultDocFile').value = '';
+    if (!$('vaultDocTitle').value.trim()) $('vaultDocTitle').value = 'Screenshot';
+  } else {
+    wrap.style.display = 'none';
+    $('vaultPasteImg').removeAttribute('src');
+  }
+}
+$('btnVaultClearPaste').addEventListener('click', () => setVaultPasted(null));
+$('vaultDocFile').addEventListener('change', () => { if ($('vaultDocFile').files[0]) setVaultPasted(null); });
+window.addEventListener('paste', (e) => {
+  if (!vaultOverlay.classList.contains('open')) return;
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const it of items) {
+    if (it.kind === 'file' && /^image\//.test(it.type)) {
+      const blob = it.getAsFile();
+      if (blob) {
+        e.preventDefault();
+        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        setVaultPasted(new File([blob], 'pasted.' + ext, { type: blob.type }));
+      }
+      return;
+    }
+  }
+});
 
 async function loadVaultDocs() {
   $('vaultList').innerHTML = '<div class="hint">Loading…</div>';
@@ -2834,7 +2881,7 @@ async function loadVaultDocs() {
 $('btnVaultAdd').addEventListener('click', async () => {
   const title = $('vaultDocTitle').value.trim();
   if (!title) { $('vaultAddStatus').textContent = 'Enter a title first'; return; }
-  const file = $('vaultDocFile').files[0];
+  const file = $('vaultDocFile').files[0] || vaultPastedFile;
   $('vaultAddStatus').textContent = 'Saving…';
   let storage_path = null, mime_type = null, size_bytes = null;
   if (file) {
@@ -2861,6 +2908,7 @@ $('btnVaultAdd').addEventListener('click', async () => {
     return;
   }
   $('vaultDocTitle').value = ''; $('vaultDocPnr').value = ''; $('vaultDocNotes').value = ''; $('vaultDocFile').value = '';
+  setVaultPasted(null);
   $('vaultAddStatus').textContent = '✓ Saved';
   loadVaultDocs();
 });
@@ -2882,6 +2930,82 @@ async function deleteVaultDoc(doc) {
   toast('Deleted');
   loadVaultDocs();
 }
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('read failed'));
+    r.readAsDataURL(blob);
+  });
+}
+
+// Build ONE self-contained HTML file with every document embedded as a data
+// URI, so it opens offline (airline check-in / immigration) with no network.
+$('btnVaultExport').addEventListener('click', async () => {
+  const { data: docs, error } = await sb.from(VAULT_TABLE).select('*').order('created_at', { ascending: false });
+  if (error) { toast('Export failed: ' + error.message, true); return; }
+  if (!docs || !docs.length) { toast('Nothing to export yet', true); return; }
+  toast('Preparing offline copy…');
+  $('btnVaultExport').disabled = true;
+
+  const typeIcon = { ticket: '🎫', qr: '🔳', booking: '📄', pnr: '🔑', other: '📎' };
+  const sections = [];
+  for (const d of docs) {
+    let media = '';
+    if (d.storage_path) {
+      try {
+        const { data: signed } = await sb.storage.from(VAULT_BUCKET).createSignedUrl(d.storage_path, 300);
+        const resp = await fetch(signed.signedUrl);
+        const blob = await resp.blob();
+        const dataUrl = await blobToDataURL(blob);
+        if (/^image\//.test(d.mime_type || blob.type)) {
+          media = `<img src="${dataUrl}" alt="${escapeAttr(d.title)}" />`;
+        } else {
+          // PDF (or other) — embed for viewing plus a download link.
+          media = `<embed src="${dataUrl}" type="${escapeAttr(d.mime_type || 'application/pdf')}" />`
+            + `<div><a href="${dataUrl}" download="${escapeAttr(d.title)}.pdf">Download file</a></div>`;
+        }
+      } catch (e) {
+        media = `<p class="warn">⚠️ Could not embed this file (${escapeHtml(e.message)}).</p>`;
+      }
+    }
+    sections.push(`<section>
+      <h2>${typeIcon[d.doc_type] || '📎'} ${escapeHtml(d.title)} <span class="tag">${escapeHtml(d.doc_type || 'other')}</span></h2>
+      ${d.pnr ? `<p class="pnr">PNR / code: <b>${escapeHtml(d.pnr)}</b></p>` : ''}
+      ${d.notes ? `<p class="notes">${escapeHtml(d.notes)}</p>` : ''}
+      ${media}
+    </section>`);
+  }
+
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Documents (offline)</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;color:#111;margin:0;padding:16px;max-width:760px;margin:0 auto;}
+  h1{font-size:20px;} .sub{color:#666;font-size:13px;margin-bottom:20px;}
+  section{border:1px solid #ddd;border-radius:12px;padding:14px;margin-bottom:16px;}
+  h2{font-size:17px;margin:0 0 6px;} .tag{font-size:11px;background:#eef;color:#334;border-radius:999px;padding:2px 8px;vertical-align:middle;}
+  .pnr{font-size:16px;} .pnr b{font-size:20px;letter-spacing:1px;} .notes{color:#444;}
+  img{max-width:100%;height:auto;border-radius:8px;border:1px solid #eee;margin-top:8px;background:#fff;}
+  embed{width:100%;height:70vh;border:1px solid #eee;border-radius:8px;margin-top:8px;}
+  a{color:#4f46e5;} .warn{color:#b42318;}
+</style></head><body>
+<h1>🧳 Travel Documents</h1>
+<div class="sub">Saved ${new Date().toLocaleString()} · works fully offline · ${docs.length} document(s)</div>
+${sections.join('\n')}
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'travel-documents.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  $('btnVaultExport').disabled = false;
+  toast('Saved travel-documents.html — open it offline');
+});
 
 // =================================================================
 // Travel time between consecutive stops + time-conflict warnings
