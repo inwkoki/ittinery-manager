@@ -237,6 +237,23 @@
     font-size: 14px;
     white-space: nowrap;
   }
+  .vault-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .vault-row .vault-meta { flex: 1; min-width: 0; }
+  .vault-row .vault-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vault-ic { font-size: 20px; }
   .row-line {
     font-size: 13.5px;
     color: var(--text-dim);
@@ -532,6 +549,7 @@
         <button class="btn btn-ghost" id="btnBudget" data-i18n-title="budget">💰</button>
         <button class="btn btn-ghost" id="btnMap" data-i18n-title="map">🗺️</button>
         <button class="btn btn-ghost" id="btnChecklist" data-i18n-title="packing">🎒</button>
+        <button class="btn btn-ghost" id="btnVault" data-i18n-title="vault">🔐</button>
         <button class="btn btn-ghost" id="btnShare" data-i18n-title="share">🔗</button>
         <button class="btn btn-ghost" id="btnNotify" data-i18n-title="notify">🔔</button>
         <button class="btn btn-ghost" id="btnImport" data-i18n-title="import">📥</button>
@@ -996,6 +1014,69 @@
   </div>
 </div>
 
+<!-- ================= VAULT MODAL ================= -->
+<div class="overlay" id="vaultOverlay">
+  <div class="modal" style="max-width:560px;">
+    <h2 data-i18n="vaultTitle">🔐 Document Vault</h2>
+
+    <!-- Gate: sign-in required and/or biometric unlock -->
+    <div id="vaultLocked">
+      <div class="hint" id="vaultGateHint" style="margin-bottom:14px;"></div>
+      <div id="vaultNeedsAuth" style="display:none;">
+        <button type="button" class="btn btn-save" id="btnVaultGoAuth" style="width:100%;" data-i18n="vaultSignIn">Sign in to use the vault</button>
+      </div>
+      <div id="vaultBioGate" style="display:none;">
+        <button type="button" class="btn btn-save" id="btnVaultUnlock" style="width:100%;" data-i18n="vaultUnlock">🔓 Unlock with biometrics</button>
+        <button type="button" class="btn btn-secondary" id="btnVaultRegister" style="width:100%; margin-top:8px;" data-i18n="vaultRegister">Set up biometric lock on this device</button>
+        <button type="button" class="btn btn-ghost" id="btnVaultSkip" style="width:100%; margin-top:8px; display:none;" data-i18n="vaultSkip">Continue without biometric lock</button>
+        <div class="hint" id="vaultBioError" style="color:var(--danger); margin-top:8px; display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Unlocked content -->
+    <div id="vaultContent" style="display:none;">
+      <div class="hint" style="margin-bottom:12px;" data-i18n="vaultHint">Keep passports, visas, insurance and hotel vouchers for this trip in one place. Upload a PDF (stored privately) or paste a view-only Google Drive link.</div>
+      <div id="vaultSetupBanner" class="banner" style="display:none; margin-bottom:12px;"></div>
+      <div id="vaultList" style="margin-bottom:14px;"></div>
+
+      <form id="vaultForm" autocomplete="off" onsubmit="return false;">
+        <label data-i18n="vaultDocTitle">Document name *</label>
+        <input type="text" id="vaultTitleInput" placeholder="Passport, Hotel voucher…" data-i18n-ph="vaultDocTitlePh" />
+
+        <div style="display:flex; gap:16px; margin:12px 0;">
+          <label style="display:flex; align-items:center; gap:6px; margin:0; cursor:pointer; width:auto;">
+            <input type="radio" name="vaultKind" value="pdf" checked style="width:auto;" /> 📄 <span data-i18n="vaultKindPdf">Upload PDF</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; margin:0; cursor:pointer; width:auto;">
+            <input type="radio" name="vaultKind" value="drive" style="width:auto;" /> 🔗 <span data-i18n="vaultKindDrive">Google Drive link</span>
+          </label>
+        </div>
+
+        <div id="vaultPdfField">
+          <input type="file" id="vaultFileInput" accept="application/pdf,.pdf" style="width:100%; padding:6px;" />
+          <div class="hint" style="margin-top:6px;" data-i18n="vaultPdfHelp">Stored privately in your account (max 25 MB). Opened via a short-lived signed link.</div>
+        </div>
+        <div id="vaultDriveField" style="display:none;">
+          <input type="url" id="vaultDriveInput" placeholder="https://drive.google.com/file/d/…/view" />
+          <div class="hint" style="margin-top:6px;" data-i18n="vaultDriveHint">In Google Drive set sharing to “Anyone with the link — Viewer”, then paste the link. Only the link is stored, not the file.</div>
+        </div>
+
+        <div class="hint" id="vaultFormStatus" style="margin-top:8px;"></div>
+        <div class="modal-actions">
+          <div><button type="button" class="btn btn-secondary" id="btnVaultLock" data-i18n="vaultLock">🔒 Lock</button></div>
+          <div class="right">
+            <button type="button" class="btn btn-save" id="btnVaultAdd" data-i18n="vaultAdd">Add to vault</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-actions" style="margin-top:6px;"><div></div><div class="right">
+      <button type="button" class="btn btn-secondary" id="btnVaultClose" data-i18n="close">Close</button>
+    </div></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1003,6 +1084,8 @@ const SUPABASE_URL = 'https://pyeeqlnnzsencnitobwo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vviYmFsZjGvNK0cs3iWBSw_B5Px2ikp';
 const ITEMS_TABLE = 'itinerary_items';
 const TRIPS_TABLE = 'trips';
+const VAULT_TABLE = 'vault_files';
+const VAULT_BUCKET = 'vault';
 const GMAPS_KEY_STORAGE = 'itinerary_gmaps_api_key';
 const AVIATIONSTACK_KEY_STORAGE = 'itinerary_aviationstack_api_key';
 const ANTHROPIC_KEY_STORAGE = 'itinerary_anthropic_api_key';
@@ -1233,6 +1316,7 @@ function showItineraryView(trip) {
 
 function showTripsView() {
   currentTripId = null;
+  vaultUnlocked = false; // re-lock the vault whenever we leave a trip
   $('itineraryView').style.display = 'none';
   $('tripsView').style.display = 'block';
   loadTrips();
@@ -2169,10 +2253,14 @@ let currentUserId = null;
 // schema.sql). Probed once at startup so the app keeps working against an
 // un-migrated database (columns absent -> features degrade gracefully).
 let HAS_USER_ID = false;
+// Whether the vault_files table exists (from the updated schema.sql).
+let HAS_VAULT = true;
 
 async function probeSchema() {
   const { error } = await sb.from(TRIPS_TABLE).select('user_id').limit(1);
   HAS_USER_ID = !(error && (error.code === '42703' || /user_id/.test(error.message || '')));
+  const { error: vErr } = await sb.from(VAULT_TABLE).select('id').limit(1);
+  HAS_VAULT = !(vErr && (vErr.code === '42P01' || /vault_files/.test(vErr.message || '')));
 }
 
 // =================================================================
@@ -2192,7 +2280,34 @@ const I18N = {
     parse: 'Parse', useFill: 'Fill form →',
     useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)',
     dupBtn: 'Duplicate to another day', dupTitle: 'Duplicate Item',
-    dupHint: 'Editing a copy — change the date, then Save'
+    dupHint: 'Editing a copy — change the date, then Save',
+    vault: 'Document vault', vaultTitle: '🔐 Document Vault',
+    vaultHint: 'Keep passports, visas, insurance and hotel vouchers for this trip in one place. Upload a PDF (stored privately) or paste a view-only Google Drive link.',
+    vaultSignIn: 'Sign in to use the vault',
+    vaultAuthHint: 'The vault stores private documents, so it needs an account. Sign in, then open the vault again.',
+    vaultUnlock: '🔓 Unlock with biometrics', vaultRegister: 'Set up biometric lock on this device',
+    vaultReRegister: 'Re-register biometrics on this device', vaultSkip: 'Continue without biometric lock',
+    vaultRegisterHint: 'Protect this vault with Windows Hello or your Samsung fingerprint/face. Set it up once on this device.',
+    vaultLockedHint: 'This vault is locked. Verify with Windows Hello or your Samsung biometric to open it.',
+    vaultDocTitle: 'Document name *', vaultDocTitlePh: 'Passport, Hotel voucher…',
+    vaultKindPdf: 'Upload PDF', vaultKindDrive: 'Google Drive link',
+    vaultPdfHelp: 'Stored privately in your account (max 25 MB). Opened via a short-lived signed link.',
+    vaultDriveHint: 'In Google Drive set sharing to “Anyone with the link — Viewer”, then paste the link. Only the link is stored, not the file.',
+    vaultLock: '🔒 Lock', vaultAdd: 'Add to vault', vaultView: 'Open',
+    vaultEmpty: 'No documents yet — add your first one below.',
+    vaultNoTrip: 'Open a trip first, then open its vault.',
+    vaultNoBio: 'This device/browser has no biometric authenticator.',
+    vaultUnlockFail: 'Biometric verification failed or was cancelled.',
+    vaultRegisterFail: 'Could not set up biometrics on this device.',
+    vaultRegistered: 'Biometric lock set up on this device',
+    vaultSetup: 'Run the updated schema.sql (it adds the vault_files table and storage bucket), then reload.',
+    vaultNeedTitle: 'Give the document a name first.', vaultNeedFile: 'Choose a PDF file.',
+    vaultPdfOnly: 'Only PDF files are allowed.', vaultTooBig: 'That file is over 25 MB.',
+    vaultUploading: 'Uploading…', vaultUploadFail: 'Upload failed',
+    vaultBadDrive: 'Enter a valid drive.google.com or docs.google.com link.',
+    vaultAdded: 'Added to vault', vaultOpenFail: 'Could not open the file.',
+    vaultDelConfirm: 'Remove', vaultDeleted: 'Removed from vault',
+    del: 'Delete', loading: 'loading'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2207,7 +2322,34 @@ const I18N = {
     parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →',
     useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)',
     dupBtn: 'ทำสำเนาไปวันอื่น', dupTitle: 'ทำสำเนารายการ',
-    dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก'
+    dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก',
+    vault: 'ตู้เก็บเอกสาร', vaultTitle: '🔐 ตู้เก็บเอกสาร',
+    vaultHint: 'เก็บพาสปอร์ต วีซ่า ประกัน และใบจองโรงแรมของทริปนี้ไว้ที่เดียว อัปโหลดไฟล์ PDF (เก็บแบบส่วนตัว) หรือวางลิงก์ Google Drive แบบดูอย่างเดียว',
+    vaultSignIn: 'เข้าสู่ระบบเพื่อใช้ตู้เก็บเอกสาร',
+    vaultAuthHint: 'ตู้เก็บเอกสารเก็บไฟล์ส่วนตัว จึงต้องมีบัญชี กรุณาเข้าสู่ระบบแล้วเปิดตู้อีกครั้ง',
+    vaultUnlock: '🔓 ปลดล็อกด้วยไบโอเมตริก', vaultRegister: 'ตั้งค่าล็อกไบโอเมตริกบนอุปกรณ์นี้',
+    vaultReRegister: 'ลงทะเบียนไบโอเมตริกใหม่บนอุปกรณ์นี้', vaultSkip: 'ใช้งานต่อโดยไม่ล็อกไบโอเมตริก',
+    vaultRegisterHint: 'ป้องกันตู้นี้ด้วย Windows Hello หรือลายนิ้วมือ/ใบหน้า Samsung ตั้งค่าครั้งเดียวบนอุปกรณ์นี้',
+    vaultLockedHint: 'ตู้นี้ถูกล็อกอยู่ ยืนยันด้วย Windows Hello หรือไบโอเมตริก Samsung เพื่อเปิด',
+    vaultDocTitle: 'ชื่อเอกสาร *', vaultDocTitlePh: 'พาสปอร์ต ใบจองโรงแรม…',
+    vaultKindPdf: 'อัปโหลด PDF', vaultKindDrive: 'ลิงก์ Google Drive',
+    vaultPdfHelp: 'เก็บแบบส่วนตัวในบัญชีคุณ (ไม่เกิน 25 MB) เปิดผ่านลิงก์แบบมีอายุสั้น',
+    vaultDriveHint: 'ใน Google Drive ตั้งการแชร์เป็น “ทุกคนที่มีลิงก์ — ผู้อ่าน” แล้ววางลิงก์ ระบบเก็บแค่ลิงก์ ไม่ได้เก็บไฟล์',
+    vaultLock: '🔒 ล็อก', vaultAdd: 'เพิ่มเข้าตู้', vaultView: 'เปิด',
+    vaultEmpty: 'ยังไม่มีเอกสาร — เพิ่มรายการแรกด้านล่าง',
+    vaultNoTrip: 'เปิดทริปก่อน แล้วจึงเปิดตู้เก็บเอกสาร',
+    vaultNoBio: 'อุปกรณ์/เบราว์เซอร์นี้ไม่มีตัวยืนยันไบโอเมตริก',
+    vaultUnlockFail: 'การยืนยันไบโอเมตริกล้มเหลวหรือถูกยกเลิก',
+    vaultRegisterFail: 'ตั้งค่าไบโอเมตริกบนอุปกรณ์นี้ไม่สำเร็จ',
+    vaultRegistered: 'ตั้งค่าล็อกไบโอเมตริกบนอุปกรณ์นี้แล้ว',
+    vaultSetup: 'รัน schema.sql เวอร์ชันใหม่ (เพิ่มตาราง vault_files และ storage bucket) แล้วโหลดหน้าใหม่',
+    vaultNeedTitle: 'ตั้งชื่อเอกสารก่อน', vaultNeedFile: 'เลือกไฟล์ PDF',
+    vaultPdfOnly: 'อนุญาตเฉพาะไฟล์ PDF', vaultTooBig: 'ไฟล์ใหญ่เกิน 25 MB',
+    vaultUploading: 'กำลังอัปโหลด…', vaultUploadFail: 'อัปโหลดไม่สำเร็จ',
+    vaultBadDrive: 'ใส่ลิงก์ drive.google.com หรือ docs.google.com ที่ถูกต้อง',
+    vaultAdded: 'เพิ่มเข้าตู้แล้ว', vaultOpenFail: 'เปิดไฟล์ไม่สำเร็จ',
+    vaultDelConfirm: 'ลบ', vaultDeleted: 'ลบออกจากตู้แล้ว',
+    del: 'ลบ', loading: 'กำลังโหลด'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -3197,6 +3339,274 @@ function afterItemsLoaded() {
   checkReminderNotifications(false);
   analyzeTiming();
 }
+
+// =================================================================
+// 🔐 Document Vault (per-trip files) + biometric device lock
+// =================================================================
+// Files are stored two ways, per entry: an uploaded PDF in the private
+// Supabase Storage `vault` bucket (opened via short-lived signed URLs), or a
+// view-only Google Drive link. Access is gated by a WebAuthn platform
+// authenticator (Windows Hello / Samsung biometric). Honest scope: with no
+// verification server this is a *device-local unlock gate* — the real data
+// protection is Supabase Auth + per-user RLS; the biometric adds a local lock.
+let vaultUnlocked = false;   // set true after a successful unlock, per trip session
+let vaultFiles = [];
+
+const vaultOverlay = $('vaultOverlay');
+const vaultForm = $('vaultForm');
+
+function vaultCredKey() { return 'itinerary_vault_cred_' + (currentUserId || 'anon'); }
+function bioSupported() { return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+function bioError(msg) { const e = $('vaultBioError'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+
+function fmtSize(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+
+// ---- base64url <-> ArrayBuffer (for WebAuthn credential ids) ----
+function b64uFromBuf(buf) {
+  const bytes = new Uint8Array(buf); let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function bufFromB64u(str) {
+  str = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function registerVaultBiometric() {
+  if (!bioSupported()) throw new Error('nobio');
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const userId = crypto.getRandomValues(new Uint8Array(16));
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      challenge,
+      rp: { name: 'Itinerary Vault', id: location.hostname },
+      user: { id: userId, name: (window._authEmail || 'vault-user'), displayName: 'Vault' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      timeout: 60000,
+      attestation: 'none'
+    }
+  });
+  if (!cred) throw new Error('cancelled');
+  localStorage.setItem(vaultCredKey(), b64uFromBuf(cred.rawId));
+}
+
+async function unlockVaultBiometric() {
+  if (!bioSupported()) throw new Error('nobio');
+  const stored = localStorage.getItem(vaultCredKey());
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge,
+      rpId: location.hostname,
+      allowCredentials: stored ? [{ type: 'public-key', id: bufFromB64u(stored) }] : [],
+      userVerification: 'required',
+      timeout: 60000
+    }
+  });
+  if (!assertion) throw new Error('cancelled');
+  vaultUnlocked = true;
+}
+
+// ---- open / gate ----
+function openVault() {
+  if (!currentTripId) { toast(t('vaultNoTrip'), true); return; }
+  renderVaultGate();
+  vaultOverlay.classList.add('open');
+}
+
+function renderVaultGate() {
+  const needAuth = HAS_USER_ID && !currentUserId;
+  $('vaultNeedsAuth').style.display = needAuth ? 'block' : 'none';
+  $('vaultBioGate').style.display = 'none';
+  bioError('');
+  $('btnVaultSkip').style.display = 'none';
+
+  if (needAuth) {
+    $('vaultLocked').style.display = 'block';
+    $('vaultContent').style.display = 'none';
+    $('vaultGateHint').textContent = t('vaultAuthHint');
+    return;
+  }
+
+  if (!vaultUnlocked && bioSupported()) {
+    $('vaultLocked').style.display = 'block';
+    $('vaultContent').style.display = 'none';
+    $('vaultBioGate').style.display = 'block';
+    const hasCred = !!localStorage.getItem(vaultCredKey());
+    $('btnVaultUnlock').style.display = hasCred ? 'block' : 'none';
+    $('btnVaultRegister').textContent = hasCred ? t('vaultReRegister') : t('vaultRegister');
+    $('vaultGateHint').textContent = hasCred ? t('vaultLockedHint') : t('vaultRegisterHint');
+    return;
+  }
+
+  // Biometrics unavailable, or already unlocked this session -> show content.
+  vaultUnlocked = true;
+  showVaultContent();
+}
+
+function showVaultContent() {
+  $('vaultLocked').style.display = 'none';
+  $('vaultContent').style.display = 'block';
+  $('btnVaultLock').style.display = bioSupported() ? 'inline-flex' : 'none';
+  loadVaultFiles();
+}
+
+// ---- CRUD ----
+async function loadVaultFiles() {
+  const el = $('vaultList');
+  el.innerHTML = '<div class="hint">' + t('loading') + '…</div>';
+  const { data, error } = await sb.from(VAULT_TABLE)
+    .select('*').eq('trip_id', currentTripId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (error.code === '42P01' || /vault_files/.test(error.message || '')) {
+      HAS_VAULT = false;
+      $('vaultSetupBanner').style.display = 'block';
+      $('vaultSetupBanner').textContent = t('vaultSetup');
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = '<div class="hint">' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+  $('vaultSetupBanner').style.display = 'none';
+  vaultFiles = data || [];
+  renderVaultList();
+}
+
+function renderVaultList() {
+  const el = $('vaultList');
+  if (!vaultFiles.length) { el.innerHTML = '<div class="hint">' + t('vaultEmpty') + '</div>'; return; }
+  el.innerHTML = vaultFiles.map((f) => {
+    const icon = f.kind === 'drive' ? '🔗' : '📄';
+    const sub = f.kind === 'drive'
+      ? 'Google Drive'
+      : escapeHtml(f.file_name || 'PDF') + (f.file_size ? ' · ' + fmtSize(f.file_size) : '');
+    return '<div class="vault-row">'
+      + '<span class="vault-ic">' + icon + '</span>'
+      + '<div class="vault-meta"><div class="vault-name">' + escapeHtml(f.title) + '</div>'
+      + '<div class="hint">' + sub + '</div></div>'
+      + '<button type="button" class="btn btn-ghost vault-open" data-id="' + escapeAttr(f.id) + '">' + t('vaultView') + '</button>'
+      + '<button type="button" class="btn btn-ghost vault-del" data-id="' + escapeAttr(f.id) + '" title="' + t('del') + '">🗑</button>'
+      + '</div>';
+  }).join('');
+}
+
+function isDriveUrl(u) {
+  try {
+    const url = new URL(u);
+    if (url.protocol !== 'https:') return false;
+    return /(^|\.)drive\.google\.com$/.test(url.hostname) || /(^|\.)docs\.google\.com$/.test(url.hostname);
+  } catch (e) { return false; }
+}
+
+async function vaultAdd() {
+  if (!HAS_VAULT) { toast(t('vaultSetup'), true); return; }
+  const title = $('vaultTitleInput').value.trim();
+  if (!title) { toast(t('vaultNeedTitle'), true); return; }
+  const kind = (document.querySelector('input[name="vaultKind"]:checked') || {}).value || 'pdf';
+  const statusEl2 = $('vaultFormStatus');
+  const addBtn = $('btnVaultAdd');
+  addBtn.disabled = true;
+  try {
+    if (kind === 'pdf') {
+      const file = $('vaultFileInput').files[0];
+      if (!file) { toast(t('vaultNeedFile'), true); return; }
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) { toast(t('vaultPdfOnly'), true); return; }
+      if (file.size > 25 * 1024 * 1024) { toast(t('vaultTooBig'), true); return; }
+      statusEl2.textContent = t('vaultUploading');
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = (currentUserId || 'shared') + '/' + currentTripId + '/' + crypto.randomUUID() + '-' + safeName;
+      const { error: upErr } = await sb.storage.from(VAULT_BUCKET)
+        .upload(path, file, { contentType: 'application/pdf', upsert: false });
+      if (upErr) { statusEl2.textContent = ''; toast(t('vaultUploadFail') + ': ' + upErr.message, true); return; }
+      const row = { trip_id: currentTripId, kind: 'pdf', title, storage_path: path, file_name: file.name, file_size: file.size };
+      if (HAS_USER_ID && currentUserId) row.user_id = currentUserId;
+      const { error: insErr } = await sb.from(VAULT_TABLE).insert(row);
+      if (insErr) { await sb.storage.from(VAULT_BUCKET).remove([path]); statusEl2.textContent = ''; toast(insErr.message, true); return; }
+    } else {
+      const url = $('vaultDriveInput').value.trim();
+      if (!isDriveUrl(url)) { toast(t('vaultBadDrive'), true); return; }
+      const row = { trip_id: currentTripId, kind: 'drive', title, drive_url: url };
+      if (HAS_USER_ID && currentUserId) row.user_id = currentUserId;
+      const { error: insErr } = await sb.from(VAULT_TABLE).insert(row);
+      if (insErr) { toast(insErr.message, true); return; }
+    }
+    $('vaultTitleInput').value = '';
+    $('vaultFileInput').value = '';
+    $('vaultDriveInput').value = '';
+    statusEl2.textContent = '';
+    toast(t('vaultAdded'));
+    loadVaultFiles();
+  } finally {
+    addBtn.disabled = false;
+  }
+}
+
+async function openVaultFile(id) {
+  const f = vaultFiles.find((x) => x.id === id);
+  if (!f) return;
+  if (f.kind === 'drive') {
+    if (!isDriveUrl(f.drive_url)) { toast(t('vaultBadDrive'), true); return; }
+    window.open(f.drive_url, '_blank', 'noopener');
+    return;
+  }
+  const { data, error } = await sb.storage.from(VAULT_BUCKET).createSignedUrl(f.storage_path, 300);
+  if (error || !data) { toast(t('vaultOpenFail'), true); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
+
+async function deleteVaultFile(id) {
+  const f = vaultFiles.find((x) => x.id === id);
+  if (!f) return;
+  const ok = await showConfirm(t('vaultDelConfirm') + ' “' + f.title + '”?', t('del'));
+  if (!ok) return;
+  if (f.kind === 'pdf' && f.storage_path) await sb.storage.from(VAULT_BUCKET).remove([f.storage_path]);
+  const { error } = await sb.from(VAULT_TABLE).delete().eq('id', id);
+  if (error) { toast(error.message, true); return; }
+  toast(t('vaultDeleted'));
+  loadVaultFiles();
+}
+
+// ---- wiring ----
+$('btnVault').addEventListener('click', openVault);
+$('btnVaultClose').addEventListener('click', () => vaultOverlay.classList.remove('open'));
+vaultOverlay.addEventListener('click', (e) => { if (e.target === vaultOverlay) vaultOverlay.classList.remove('open'); });
+$('btnVaultGoAuth').addEventListener('click', () => { vaultOverlay.classList.remove('open'); openAuth(); });
+$('btnVaultUnlock').addEventListener('click', async () => {
+  bioError('');
+  try { await unlockVaultBiometric(); showVaultContent(); }
+  catch (e) { bioError(t('vaultUnlockFail')); $('btnVaultSkip').style.display = 'block'; }
+});
+$('btnVaultRegister').addEventListener('click', async () => {
+  bioError('');
+  try { await registerVaultBiometric(); vaultUnlocked = true; showVaultContent(); toast(t('vaultRegistered')); }
+  catch (e) { bioError(t('vaultRegisterFail')); $('btnVaultSkip').style.display = 'block'; }
+});
+$('btnVaultSkip').addEventListener('click', () => { vaultUnlocked = true; showVaultContent(); });
+$('btnVaultLock').addEventListener('click', () => { vaultUnlocked = false; renderVaultGate(); });
+$('btnVaultAdd').addEventListener('click', vaultAdd);
+document.querySelectorAll('input[name="vaultKind"]').forEach((r) => r.addEventListener('change', () => {
+  const kind = (document.querySelector('input[name="vaultKind"]:checked') || {}).value || 'pdf';
+  $('vaultPdfField').style.display = kind === 'pdf' ? 'block' : 'none';
+  $('vaultDriveField').style.display = kind === 'drive' ? 'block' : 'none';
+}));
+$('vaultList').addEventListener('click', (e) => {
+  const openBtn = e.target.closest('.vault-open');
+  const delBtn = e.target.closest('.vault-del');
+  if (openBtn) openVaultFile(openBtn.dataset.id);
+  else if (delBtn) deleteVaultFile(delBtn.dataset.id);
+});
 
 // =================================================================
 // Init v2

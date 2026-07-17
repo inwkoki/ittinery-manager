@@ -156,3 +156,75 @@ create policy "own or shared update" on public.itinerary_items for update
 drop policy if exists "own or shared delete" on public.itinerary_items;
 create policy "own or shared delete" on public.itinerary_items for delete
   using (user_id is null or user_id = auth.uid());
+
+-- =====================================================================
+-- 🔐 Document Vault (per-trip files) — added
+-- =====================================================================
+-- One row per stored document. Each entry is EITHER an uploaded PDF
+-- (kind = 'pdf', held in the private `vault` storage bucket at
+-- `storage_path`) OR a view-only Google Drive link (kind = 'drive',
+-- URL in `drive_url`). Rows are always owned by a signed-in user, so the
+-- vault is private per account (unlike the shared legacy trip rows).
+create table if not exists public.vault_files (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid references public.trips(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  kind text not null default 'pdf' check (kind in ('pdf', 'drive')),
+  title text not null,
+  storage_path text,          -- object path inside the `vault` bucket (pdf)
+  drive_url text,             -- view-only Google Drive link (drive)
+  file_name text,
+  file_size bigint,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists vault_files_trip_id_idx on public.vault_files(trip_id);
+create index if not exists vault_files_user_id_idx on public.vault_files(user_id);
+
+drop trigger if exists trg_vault_files_updated_at on public.vault_files;
+create trigger trg_vault_files_updated_at
+before update on public.vault_files
+for each row execute function public.set_updated_at();
+
+-- Row Level Security: a signed-in user sees/edits only their own vault rows.
+alter table public.vault_files enable row level security;
+
+drop policy if exists "vault own read" on public.vault_files;
+create policy "vault own read" on public.vault_files for select
+  using (user_id = auth.uid());
+drop policy if exists "vault own insert" on public.vault_files;
+create policy "vault own insert" on public.vault_files for insert
+  with check (user_id = auth.uid());
+drop policy if exists "vault own update" on public.vault_files;
+create policy "vault own update" on public.vault_files for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "vault own delete" on public.vault_files;
+create policy "vault own delete" on public.vault_files for delete
+  using (user_id = auth.uid());
+
+-- Private storage bucket for uploaded PDFs (not public — served via short-lived
+-- signed URLs generated client-side for the owner only).
+insert into storage.buckets (id, name, public)
+values ('vault', 'vault', false)
+on conflict (id) do nothing;
+
+-- Storage RLS: objects are namespaced by the owner's uid as the first path
+-- segment (`<uid>/<trip_id>/<file>`), so a user can only touch their own files.
+drop policy if exists "vault objects read" on storage.objects;
+create policy "vault objects read" on storage.objects for select
+  to authenticated
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault objects insert" on storage.objects;
+create policy "vault objects insert" on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault objects update" on storage.objects;
+create policy "vault objects update" on storage.objects for update
+  to authenticated
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault objects delete" on storage.objects;
+create policy "vault objects delete" on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
