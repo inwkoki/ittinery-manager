@@ -508,6 +508,7 @@
       <div style="display:flex; align-items:center; gap:8px;">
         <span id="tripsStatus">connecting…</span>
         <button class="btn btn-ghost" id="btnLang" title="Language">TH</button>
+        <button class="btn btn-ghost" id="btnVault" data-i18n-title="vaultBtn" style="display:none;">🔐</button>
         <button class="btn btn-ghost" id="btnAuth" title="Account">👤</button>
         <button class="btn btn-ghost" id="btnSettings">⚙</button>
         <button class="btn btn-primary" id="btnNewTrip" data-i18n="newTrip">+ New Trip</button>
@@ -993,6 +994,55 @@
         <button type="button" class="btn btn-save" id="btnImportUse" style="display:none;" data-i18n="useFill">Fill form →</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ================= VAULT GATE (re-enter password) ================= -->
+<div class="overlay" id="vaultGateOverlay">
+  <div class="modal" style="max-width:380px;">
+    <h2>🔐 <span data-i18n="vaultTitle">Document Vault</span></h2>
+    <div class="hint" data-i18n="vaultGateHint">Re-enter your password to open the vault.</div>
+    <label style="margin-top:12px;" data-i18n="password">Password</label>
+    <input type="password" id="vaultPassword" autocomplete="current-password" />
+    <div class="hint" id="vaultGateError" style="color:var(--danger); display:none; margin-top:8px;"></div>
+    <div class="modal-actions"><div></div><div class="right">
+      <button type="button" class="btn btn-secondary" id="btnVaultGateCancel" data-i18n="close">Close</button>
+      <button type="button" class="btn btn-save" id="btnVaultUnlock" data-i18n="unlock">Unlock</button>
+    </div></div>
+  </div>
+</div>
+
+<!-- ================= VAULT ================= -->
+<div class="overlay" id="vaultOverlay">
+  <div class="modal" style="max-width:620px;">
+    <h2>🔐 <span data-i18n="vaultTitle">Document Vault</span></h2>
+    <div class="hint" data-i18n="vaultHint">Private to your account — tickets, QR codes, booking PDFs, PNR codes. Files are stored in your Supabase project and only you can open them.</div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:12px; margin:12px 0;">
+      <div class="form-grid">
+        <div class="full"><label data-i18n="vaultDocTitle">Title *</label><input type="text" id="vaultDocTitle" placeholder="e.g. ANA e-ticket" /></div>
+        <div><label>Type</label>
+          <select id="vaultDocType">
+            <option value="ticket">🎫 Ticket</option>
+            <option value="qr">🔳 QR code</option>
+            <option value="booking">📄 Booking PDF</option>
+            <option value="pnr">🔑 PNR / code</option>
+            <option value="other">📎 Other</option>
+          </select>
+        </div>
+        <div><label>PNR / code</label><input type="text" id="vaultDocPnr" placeholder="e.g. ABC123" /></div>
+        <div class="full"><label data-i18n="vaultFile">File (image or PDF)</label><input type="file" id="vaultDocFile" accept="image/*,.pdf" style="padding:6px;" /></div>
+        <div class="full"><label>Notes</label><input type="text" id="vaultDocNotes" /></div>
+      </div>
+      <div style="text-align:right; margin-top:10px;"><button type="button" class="btn btn-save" id="btnVaultAdd" data-i18n="add">Add</button></div>
+      <div class="hint" id="vaultAddStatus" style="margin-top:6px;"></div>
+    </div>
+
+    <div id="vaultList"></div>
+
+    <div class="modal-actions"><div></div><div class="right">
+      <button type="button" class="btn btn-secondary" id="btnVaultClose" data-i18n="close">Close</button>
+    </div></div>
   </div>
 </div>
 
@@ -2203,7 +2253,11 @@ const I18N = {
     dupHint: 'Editing a copy — change the date, then Save',
     shared: 'Shared', claimTrip: 'Save to my account',
     claimConfirm: 'Move "%s" into your account? It becomes private to you and will no longer be shared.',
-    claimDone: 'Saved to your account'
+    claimDone: 'Saved to your account',
+    vaultBtn: 'Document Vault', vaultTitle: 'Document Vault',
+    vaultGateHint: 'Re-enter your password to open the vault.', unlock: 'Unlock',
+    vaultHint: 'Private to your account — tickets, QR codes, booking PDFs, PNR codes. Files are stored in your Supabase project and only you can open them.',
+    vaultDocTitle: 'Title *', vaultFile: 'File (image or PDF)'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2221,7 +2275,11 @@ const I18N = {
     dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก',
     shared: 'สาธารณะ', claimTrip: 'บันทึกเข้าบัญชีฉัน',
     claimConfirm: 'ย้าย "%s" เข้าบัญชีของคุณ? จะกลายเป็นส่วนตัวและไม่แชร์สาธารณะอีก',
-    claimDone: 'บันทึกเข้าบัญชีแล้ว'
+    claimDone: 'บันทึกเข้าบัญชีแล้ว',
+    vaultBtn: 'ตู้เก็บเอกสาร', vaultTitle: 'ตู้เก็บเอกสาร (Vault)',
+    vaultGateHint: 'ใส่รหัสผ่านอีกครั้งเพื่อเปิดตู้เก็บเอกสาร', unlock: 'ปลดล็อก',
+    vaultHint: 'ส่วนตัวของบัญชีคุณ — ตั๋ว, QR code, ใบจอง PDF, เลข PNR ไฟล์เก็บในโปรเจ็กต์ Supabase ของคุณ เปิดดูได้เฉพาะคุณ',
+    vaultDocTitle: 'ชื่อ *', vaultFile: 'ไฟล์ (รูปหรือ PDF)'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -2662,6 +2720,7 @@ function refreshAuthUI() {
   $('authForm').style.display = signedIn ? 'none' : 'block';
   $('authSignedIn').style.display = signedIn ? 'block' : 'none';
   $('btnAuth').textContent = signedIn ? '🔓' : '👤';
+  $('btnVault').style.display = signedIn ? 'inline-block' : 'none'; // vault needs an account
   if (signedIn && sb.auth.getUser) $('authWho').textContent = window._authEmail || '';
 }
 
@@ -2695,7 +2754,133 @@ $('btnSignOut').addEventListener('click', async () => {
 function onAuthChanged(user) {
   currentUserId = user ? user.id : null;
   window._authEmail = user ? user.email : '';
+  vaultUnlocked = false; // re-lock the vault whenever the session changes
   refreshAuthUI();
+}
+
+// =================================================================
+// Document Vault (Supabase Storage, per-user; password step-up to open)
+// =================================================================
+const VAULT_TABLE = 'vault_documents';
+const VAULT_BUCKET = 'vault';
+let vaultUnlocked = false;
+const vaultGate = $('vaultGateOverlay');
+const vaultOverlay = $('vaultOverlay');
+
+$('btnVault').addEventListener('click', () => {
+  if (!currentUserId) { toast('Sign in to use the vault', true); return; }
+  if (vaultUnlocked) { openVault(); return; }
+  $('vaultGateError').style.display = 'none';
+  $('vaultPassword').value = '';
+  vaultGate.classList.add('open');
+  $('vaultPassword').focus();
+});
+$('btnVaultGateCancel').addEventListener('click', () => vaultGate.classList.remove('open'));
+vaultGate.addEventListener('click', (e) => { if (e.target === vaultGate) vaultGate.classList.remove('open'); });
+$('vaultPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnVaultUnlock').click(); });
+
+$('btnVaultUnlock').addEventListener('click', async () => {
+  const pw = $('vaultPassword').value;
+  if (!pw) return;
+  const btn = $('btnVaultUnlock');
+  btn.disabled = true;
+  // Step-up check: re-verify the signed-in user's password.
+  const { error } = await sb.auth.signInWithPassword({ email: window._authEmail, password: pw });
+  btn.disabled = false;
+  if (error) {
+    const el = $('vaultGateError');
+    el.textContent = 'Wrong password'; el.style.display = 'block';
+    return;
+  }
+  vaultUnlocked = true;
+  vaultGate.classList.remove('open');
+  openVault();
+});
+
+async function openVault() {
+  vaultOverlay.classList.add('open');
+  await loadVaultDocs();
+}
+$('btnVaultClose').addEventListener('click', () => vaultOverlay.classList.remove('open'));
+vaultOverlay.addEventListener('click', (e) => { if (e.target === vaultOverlay) vaultOverlay.classList.remove('open'); });
+
+async function loadVaultDocs() {
+  $('vaultList').innerHTML = '<div class="hint">Loading…</div>';
+  const { data, error } = await sb.from(VAULT_TABLE).select('*').order('created_at', { ascending: false });
+  if (error) {
+    $('vaultList').innerHTML = `<div class="hint">⚠️ ${escapeHtml(error.message)}<br>Run the vault section of schema.sql in Supabase and enable Email auth.</div>`;
+    return;
+  }
+  if (!data.length) { $('vaultList').innerHTML = '<div class="hint">No documents yet — add a ticket, QR, PDF or PNR above.</div>'; return; }
+  const typeIcon = { ticket: '🎫', qr: '🔳', booking: '📄', pnr: '🔑', other: '📎' };
+  $('vaultList').innerHTML = data.map((d) => `
+    <div class="row-line" style="justify-content:space-between; border-top:1px solid var(--border); padding:9px 0;">
+      <div style="min-width:0;">
+        <b>${typeIcon[d.doc_type] || '📎'} ${escapeHtml(d.title)}</b>
+        ${d.pnr ? `<div class="hint">🔑 ${escapeHtml(d.pnr)}</div>` : ''}
+        ${d.notes ? `<div class="hint">${escapeHtml(d.notes)}</div>` : ''}
+      </div>
+      <div class="reminder-actions">
+        ${d.storage_path ? `<button class="icon-btn" data-vault-view="${d.id}">View</button>` : ''}
+        <button class="icon-btn danger" data-vault-del="${d.id}">✕</button>
+      </div>
+    </div>`).join('');
+  $('vaultList').querySelectorAll('[data-vault-view]').forEach((b) =>
+    b.addEventListener('click', () => viewVaultDoc(data.find((x) => x.id === b.dataset.vaultView))));
+  $('vaultList').querySelectorAll('[data-vault-del]').forEach((b) =>
+    b.addEventListener('click', () => deleteVaultDoc(data.find((x) => x.id === b.dataset.vaultDel))));
+}
+
+$('btnVaultAdd').addEventListener('click', async () => {
+  const title = $('vaultDocTitle').value.trim();
+  if (!title) { $('vaultAddStatus').textContent = 'Enter a title first'; return; }
+  const file = $('vaultDocFile').files[0];
+  $('vaultAddStatus').textContent = 'Saving…';
+  let storage_path = null, mime_type = null, size_bytes = null;
+  if (file) {
+    // Path is prefixed with the user's id so Storage RLS can scope access.
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    storage_path = `${currentUserId}/${crypto.randomUUID()}-${safe}`;
+    const { error: upErr } = await sb.storage.from(VAULT_BUCKET).upload(storage_path, file, { upsert: false, contentType: file.type });
+    if (upErr) { $('vaultAddStatus').textContent = '⚠️ Upload failed: ' + upErr.message; return; }
+    mime_type = file.type; size_bytes = file.size;
+  }
+  const { error } = await sb.from(VAULT_TABLE).insert({
+    user_id: currentUserId,
+    trip_id: currentTripId || null,
+    title,
+    doc_type: $('vaultDocType').value,
+    pnr: $('vaultDocPnr').value.trim() || null,
+    notes: $('vaultDocNotes').value.trim() || null,
+    storage_path, mime_type, size_bytes
+  });
+  if (error) {
+    // If the row failed, don't leave an orphaned file behind.
+    if (storage_path) sb.storage.from(VAULT_BUCKET).remove([storage_path]);
+    $('vaultAddStatus').textContent = '⚠️ ' + error.message;
+    return;
+  }
+  $('vaultDocTitle').value = ''; $('vaultDocPnr').value = ''; $('vaultDocNotes').value = ''; $('vaultDocFile').value = '';
+  $('vaultAddStatus').textContent = '✓ Saved';
+  loadVaultDocs();
+});
+
+async function viewVaultDoc(doc) {
+  if (!doc || !doc.storage_path) return;
+  // Short-lived signed URL — the bucket is private.
+  const { data, error } = await sb.storage.from(VAULT_BUCKET).createSignedUrl(doc.storage_path, 300);
+  if (error) { toast('Could not open: ' + error.message, true); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+}
+
+async function deleteVaultDoc(doc) {
+  const ok = await showConfirm(`Delete "${doc.title}" from your vault?`, 'Delete');
+  if (!ok) return;
+  if (doc.storage_path) await sb.storage.from(VAULT_BUCKET).remove([doc.storage_path]);
+  const { error } = await sb.from(VAULT_TABLE).delete().eq('id', doc.id);
+  if (error) { toast('Delete failed: ' + error.message, true); return; }
+  toast('Deleted');
+  loadVaultDocs();
 }
 
 // =================================================================

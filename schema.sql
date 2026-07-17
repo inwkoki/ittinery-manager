@@ -156,3 +156,50 @@ create policy "own or shared update" on public.itinerary_items for update
 drop policy if exists "own or shared delete" on public.itinerary_items;
 create policy "own or shared delete" on public.itinerary_items for delete
   using (user_id is null or user_id = auth.uid());
+
+-- =====================================================================
+-- Document Vault (requires auth) — tickets, QR codes, booking PDFs, PNRs
+-- =====================================================================
+-- Metadata lives here; the actual files go in the private "vault" Storage
+-- bucket (below), keyed by a path that starts with the owner's user id.
+-- Unlike trips, the vault is STRICTLY per-user — no shared/NULL rows.
+create table if not exists public.vault_documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  trip_id uuid references public.trips(id) on delete set null,
+  title text not null,
+  doc_type text default 'other',   -- ticket | qr | booking | pnr | other
+  pnr text,                         -- PNR / confirmation code (text is fine here)
+  notes text,
+  storage_path text,                -- path in the 'vault' bucket (null for text-only entries)
+  mime_type text,
+  size_bytes bigint,
+  created_at timestamptz not null default now()
+);
+create index if not exists vault_documents_user_id_idx on public.vault_documents(user_id);
+
+alter table public.vault_documents enable row level security;
+drop policy if exists "vault owner all" on public.vault_documents;
+create policy "vault owner all" on public.vault_documents for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- Private Storage bucket for the files.
+insert into storage.buckets (id, name, public)
+values ('vault', 'vault', false)
+on conflict (id) do nothing;
+
+-- Storage RLS: a user may only touch objects under a folder named after their
+-- own user id (e.g. "<auth.uid()>/<uuid>-ticket.pdf"). The app uploads to that path.
+drop policy if exists "vault read own" on storage.objects;
+create policy "vault read own" on storage.objects for select
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault insert own" on storage.objects;
+create policy "vault insert own" on storage.objects for insert
+  with check (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault update own" on storage.objects;
+create policy "vault update own" on storage.objects for update
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault delete own" on storage.objects;
+create policy "vault delete own" on storage.objects for delete
+  using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);

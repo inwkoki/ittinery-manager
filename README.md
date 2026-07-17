@@ -42,6 +42,11 @@ keep it all offline-capable.
 - **🌐 Thai / English** UI toggle.
 - **Optional accounts** — email/password sign-in (Supabase Auth). Signed-in users'
   trips are private to them; signed out, the app still works on shared data.
+- **🔐 Document Vault** (signed-in only) — store tickets, QR codes, booking PDFs and
+  PNR codes privately. Files go in a private **Supabase Storage** bucket keyed by
+  your user id (per-user Storage RLS); opening a file uses a short-lived signed URL.
+  Opening the vault requires re-entering your password (step-up). Metadata + PNR text
+  live in a `vault_documents` table (owner-only RLS).
 - Light/dark theme.
 
 ## Setup
@@ -66,6 +71,11 @@ Signed-in users still see the legacy shared trips (badged **🌐 Shared**) so
 nothing disappears after login. Each shared trip offers **⤵ Save to my account**
 (claim — moves it into your account, making it private) or **⧉ Duplicate**
 (keeps the shared original and adds a private copy).
+
+The same `schema.sql` also provisions the **Document Vault**: a `vault_documents`
+table and a private `vault` Storage bucket with per-user Storage RLS policies.
+(Bucket creation via SQL requires running it as the Supabase SQL Editor's
+service role, which is the default there.)
 
 ## Tech
 
