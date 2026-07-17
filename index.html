@@ -1079,8 +1079,10 @@ function showConfirm(message, okLabel) {
 async function loadTrips() {
   $('tripsStatus').textContent = 'loading…';
   let q = sb.from(TRIPS_TABLE).select('*');
-  // When the DB is migrated for auth and a user is signed in, only show their trips.
-  if (HAS_USER_ID && currentUserId) q = q.eq('user_id', currentUserId);
+  // When signed in (migrated DB), show the user's own trips AND any legacy
+  // shared/public trips (user_id IS NULL) so nothing disappears after login —
+  // they can then claim or duplicate a public trip into their account.
+  if (HAS_USER_ID && currentUserId) q = q.or('user_id.is.null,user_id.eq.' + currentUserId);
   const { data, error } = await q
     .order('start_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
@@ -1126,19 +1128,23 @@ function renderTrips(counts) {
       .map((d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))
       .join(' – ');
     const count = counts[trip.id] || 0;
+    // A legacy shared trip (no owner) shown to a signed-in user — offer to claim it.
+    const isPublic = HAS_USER_ID && !trip.user_id;
+    const showClaim = !!currentUserId && isPublic;
     card.innerHTML = `
       <div class="trip-card-actions">
+        ${showClaim ? `<button class="icon-btn trip-claim" title="${escapeAttr(t('claimTrip'))}">⤵</button>` : ''}
         <button class="icon-btn trip-dup" title="Duplicate trip">⧉</button>
         <button class="icon-btn trip-edit" title="Edit trip">✎</button>
         <button class="icon-btn danger trip-delete" title="Delete trip">✕</button>
       </div>
       <div class="cover">🧳</div>
       <div class="body">
-        <div class="title">${escapeHtml(trip.name)}</div>
+        <div class="title">${escapeHtml(trip.name)}${showClaim ? ' <span class="pill" style="vertical-align:middle;">🌐 ' + escapeHtml(t('shared')) + '</span>' : ''}</div>
         <div class="meta">${range || 'No dates set'} · ${count} item${count === 1 ? '' : 's'}</div>
       </div>`;
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.trip-edit') || e.target.closest('.trip-delete')) return;
+      if (e.target.closest('.trip-card-actions')) return;
       openTrip(trip);
     });
     card.querySelector('.trip-edit').addEventListener('click', (e) => {
@@ -1153,6 +1159,8 @@ function renderTrips(counts) {
       e.stopPropagation();
       duplicateTrip(trip);
     });
+    const claimBtn = card.querySelector('.trip-claim');
+    if (claimBtn) claimBtn.addEventListener('click', (e) => { e.stopPropagation(); claimTrip(trip); });
     el.appendChild(card);
   }
 }
@@ -2192,7 +2200,10 @@ const I18N = {
     parse: 'Parse', useFill: 'Fill form →',
     useAi: 'Use Claude AI (reads screenshots, photos & PDFs — more accurate)',
     dupBtn: 'Duplicate to another day', dupTitle: 'Duplicate Item',
-    dupHint: 'Editing a copy — change the date, then Save'
+    dupHint: 'Editing a copy — change the date, then Save',
+    shared: 'Shared', claimTrip: 'Save to my account',
+    claimConfirm: 'Move "%s" into your account? It becomes private to you and will no longer be shared.',
+    claimDone: 'Saved to your account'
   },
   th: {
     myTrips: '🧳 ทริปของฉัน', newTrip: '+ ทริปใหม่', newItem: '+ เพิ่มรายการ', export: '⬇ ส่งออก',
@@ -2207,7 +2218,10 @@ const I18N = {
     parse: 'แยกข้อมูล', useFill: 'เติมลงฟอร์ม →',
     useAi: 'ใช้ Claude AI (อ่านสกรีนช็อต รูปถ่าย และ PDF — แม่นกว่า)',
     dupBtn: 'ทำสำเนาไปวันอื่น', dupTitle: 'ทำสำเนารายการ',
-    dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก'
+    dupHint: 'กำลังแก้สำเนา — เปลี่ยนวันที่ แล้วกดบันทึก',
+    shared: 'สาธารณะ', claimTrip: 'บันทึกเข้าบัญชีฉัน',
+    claimConfirm: 'ย้าย "%s" เข้าบัญชีของคุณ? จะกลายเป็นส่วนตัวและไม่แชร์สาธารณะอีก',
+    claimDone: 'บันทึกเข้าบัญชีแล้ว'
   }
 };
 let LANG = localStorage.getItem('itinerary_lang') || 'en';
@@ -2492,6 +2506,20 @@ async function injectWeather() {
 // =================================================================
 // Duplicate trip (template)
 // =================================================================
+// Move a legacy shared (owner-less) trip into the signed-in user's account,
+// so it becomes private to them (and disappears for anonymous viewers).
+async function claimTrip(trip) {
+  if (!(HAS_USER_ID && currentUserId)) return;
+  const ok = await showConfirm(t('claimConfirm').replace('%s', trip.name), t('claimTrip'));
+  if (!ok) return;
+  const { error } = await sb.from(TRIPS_TABLE).update({ user_id: currentUserId }).eq('id', trip.id);
+  if (error) { toast('Failed: ' + error.message, true); return; }
+  // Claim its items too so they stay visible/editable under RLS.
+  await sb.from(ITEMS_TABLE).update({ user_id: currentUserId }).eq('trip_id', trip.id).is('user_id', null);
+  toast(t('claimDone'));
+  loadTrips();
+}
+
 async function duplicateTrip(trip) {
   const ok = await showConfirm(`Duplicate "${trip.name}" with all its items?`, 'Duplicate');
   if (!ok) return;

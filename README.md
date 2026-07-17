@@ -62,6 +62,11 @@ while rows created when signed in are private to that user. To use it, run the
 updated `schema.sql`, then enable **Email** auth in your Supabase dashboard
 (Authentication → Providers).
 
+Signed-in users still see the legacy shared trips (badged **🌐 Shared**) so
+nothing disappears after login. Each shared trip offers **⤵ Save to my account**
+(claim — moves it into your account, making it private) or **⧉ Duplicate**
+(keeps the shared original and adds a private copy).
+
 ## Tech
 
 Vanilla HTML/CSS/JS, [Supabase JS](https://supabase.com/), QRCode.js,
